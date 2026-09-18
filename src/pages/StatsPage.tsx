@@ -24,15 +24,19 @@ const RANGES: Array<{ value: StatsRange; label: string }> = [
   { value: "year", label: "Année" },
 ];
 
-function useChartColors(theme: "dark" | "light") {
-  return theme === "dark"
-    ? { primary: "#C9B6FF", tertiary: "#EEB8CE", grid: "#333047", text: "#CAC4D6", surface: "#1D1B31" }
-    : { primary: "#6B4CE0", tertiary: "#7C5265", grid: "#E4DFEB", text: "#48454E", surface: "#F0EBF6" };
+function useChartColors(theme: "dark" | "light" | "oled") {
+  if (theme === "light") {
+    return { primary: "#6B4CE0", tertiary: "#7C5265", grid: "#E4DFEB", text: "#48454E", surface: "#F0EBF6" };
+  }
+  if (theme === "oled") {
+    return { primary: "#C9B6FF", tertiary: "#EEB8CE", grid: "#2A2738", text: "#CAC4D6", surface: "#0A0910" };
+  }
+  return { primary: "#C9B6FF", tertiary: "#EEB8CE", grid: "#333047", text: "#CAC4D6", surface: "#1D1B31" };
 }
 
 export function StatsPage() {
-  const { emotions, tags, theme } = useAppState();
-  const colors = useChartColors(theme);
+  const { emotions, tags, resolvedTheme } = useAppState();
+  const colors = useChartColors(resolvedTheme);
   const [dreams, setDreams] = useState<Dream[]>([]);
   const [range, setRange] = useState<StatsRange>("month");
   const [loading, setLoading] = useState(true);
@@ -52,6 +56,25 @@ export function StatsPage() {
     [dreams, emotionsById],
   );
   const tagFreq = useMemo(() => computeFrequency(dreams, (d) => d.tagIds, tagsById).slice(0, 8), [dreams, tagsById]);
+  const dreamSigns = useMemo(() => {
+    const stringLookup = (values: string[]) => new Map(values.map((v) => [v, { label: v }]));
+    const characterLookup = stringLookup(dreams.flatMap((d) => d.characters));
+    const locationLookup = stringLookup(dreams.flatMap((d) => d.locations));
+    const characterFreq = computeFrequency(dreams, (d) => d.characters, characterLookup).map((f) => ({
+      ...f,
+      kind: "Personnage",
+    }));
+    const locationFreq = computeFrequency(dreams, (d) => d.locations, locationLookup).map((f) => ({
+      ...f,
+      kind: "Lieu",
+    }));
+    const tagSignFreq = computeFrequency(dreams, (d) => d.tagIds, tagsById).map((f) => ({ ...f, kind: "Tag" }));
+    const threshold = dreams.length < 15 ? 2 : 3;
+    return [...characterFreq, ...locationFreq, ...tagSignFreq]
+      .filter((f) => f.count >= threshold)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 8);
+  }, [dreams, tagsById]);
   const correlation = useMemo(() => pearsonCorrelation(dreams), [dreams]);
   const scatterData = useMemo(
     () =>
@@ -166,6 +189,26 @@ export function StatsPage() {
               <Bar dataKey="count" fill={colors.primary} radius={[0, 4, 4, 0]} maxBarSize={18} />
             </BarChart>
           </ResponsiveContainer>
+        </div>
+      )}
+
+      {dreamSigns.length > 0 && (
+        <div className="stat-card">
+          <h3 style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <Icon name="sparkle" size={16} />
+            Signes de rêve récurrents
+          </h3>
+          <p style={{ fontSize: 13, color: "var(--md-sys-color-on-surface-variant)", marginBottom: 12 }}>
+            Ces éléments reviennent souvent dans tes rêves — de bons candidats comme déclencheurs de rêve lucide
+            (« est-ce que je rêve ? » à chaque fois que tu les rencontres).
+          </p>
+          <div className="chip-row">
+            {dreamSigns.map((s) => (
+              <span key={`${s.kind}-${s.id}`} className="badge">
+                {s.label} · {s.kind.toLowerCase()} · ×{s.count}
+              </span>
+            ))}
+          </div>
         </div>
       )}
 

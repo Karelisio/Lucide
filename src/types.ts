@@ -1,4 +1,5 @@
-export type ThemeMode = "dark" | "light";
+export type ThemeMode = "system" | "light" | "dark" | "oled";
+export type ResolvedTheme = "light" | "dark" | "oled";
 
 export interface EmotionDef {
   id: string;

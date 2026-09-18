@@ -4,4 +4,7 @@
     <string name="title_activity_main">Lucide</string>
     <string name="package_name">io.karelisio.lucide</string>
     <string name="custom_url_scheme">io.karelisio.lucide</string>
+    <string name="widget_label">Lucide — Noter un rêve</string>
+    <string name="widget_description">Ouvre directement le formulaire de saisie d\'un rêve.</string>
+    <string name="widget_action_label">Noter un rêve</string>
 </resources>

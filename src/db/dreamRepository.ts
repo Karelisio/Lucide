@@ -248,6 +248,14 @@ export async function findOrCreateTag(label: string): Promise<TagDef> {
   return { id, label: clean };
 }
 
+export async function addTagToDreams(dreamIds: string[], tagId: string): Promise<void> {
+  const db = await getDatabase();
+  for (const dreamId of dreamIds) {
+    await db.run("INSERT OR IGNORE INTO dream_tags (dream_id, tag_id) VALUES (?, ?);", [dreamId, tagId]);
+  }
+  await persist();
+}
+
 export async function deleteTag(id: string): Promise<void> {
   const db = await getDatabase();
   await db.run("DELETE FROM tags WHERE id = ?;", [id]);

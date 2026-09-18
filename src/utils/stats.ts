@@ -84,6 +84,31 @@ export function computeFrequency(
     .sort((a, b) => b.count - a.count);
 }
 
+function localIsoDate(d: Date): string {
+  const copy = new Date(d);
+  copy.setMinutes(copy.getMinutes() - copy.getTimezoneOffset());
+  return copy.toISOString().slice(0, 10);
+}
+
+/**
+ * Nombre de nuits consécutives journalisées jusqu'à aujourd'hui (ou hier si la nuit
+ * dernière n'a pas encore été notée — on ne casse pas le streak avant le réveil).
+ */
+export function computeStreak(dreams: Dream[]): number {
+  const nights = new Set(dreams.map((d) => d.nightDate));
+  const cursor = new Date();
+  cursor.setHours(0, 0, 0, 0);
+  if (!nights.has(localIsoDate(cursor))) {
+    cursor.setDate(cursor.getDate() - 1);
+  }
+  let streak = 0;
+  while (nights.has(localIsoDate(cursor))) {
+    streak++;
+    cursor.setDate(cursor.getDate() - 1);
+  }
+  return streak;
+}
+
 export function pearsonCorrelation(dreams: Dream[]): number | null {
   const pairs = dreams
     .filter((d) => d.sleepQuality !== null && d.dreamRating !== null)

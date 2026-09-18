@@ -1,5 +1,22 @@
 [
   {
+    "version": "1.1.0",
+    "date": "2026-09-18",
+    "notes": [
+      "Thème : mode Système (suit le réglage clair/sombre du téléphone) et noir OLED, en plus de clair/sombre.",
+      "Couleurs dynamiques (Material You) sur Android 12+ : option pour reprendre les couleurs du fond d'écran.",
+      "Fond d'écran en dégradé doux au lieu d'un aplat uni.",
+      "Glisser une entrée de la liste pour la supprimer, avec annulation temporaire (snackbar).",
+      "Streak : nombre de nuits consécutives journalisées, affiché sur l'accueil.",
+      "Vue calendrier des rêves, en plus de la liste.",
+      "Sélection multiple dans la liste : suppression et ajout de tag groupés.",
+      "Recherches récentes et tags/émotions suggérés par fréquence d'utilisation.",
+      "Statistiques : détection des signes de rêve récurrents (tags, lieux, personnages).",
+      "Rappel matinal optionnel (notification locale, aucune donnée envoyée).",
+      "Widget d'écran d'accueil Android pour noter un rêve directement."
+    ]
+  },
+  {
     "version": "1.0.0",
     "date": "2026-09-18",
     "notes": [

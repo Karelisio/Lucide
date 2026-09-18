@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Icon } from "../components/Icon";
 import { ChipInput } from "../components/ChipInput";
 import { EmotionChips } from "../components/EmotionChips";
@@ -15,33 +15,56 @@ import {
   deleteAudioNoteRow,
   deleteDream,
   getDream,
+  listDreams,
   updateDream,
 } from "../db/dreamRepository";
 import { deleteAudioFile } from "../audio/audioRecorder";
-import type { AudioNote, DreamFormValues } from "../types";
+import type { AudioNote, Dream, DreamFormValues } from "../types";
 import { defaultNightDateForNow } from "../utils/format";
+import { computeFrequency } from "../utils/stats";
 
-const emptyForm: DreamFormValues = {
-  nightDate: defaultNightDateForNow(),
-  text: "",
-  locations: [],
-  characters: [],
-  emotionIds: [],
-  tagIds: [],
-  dreamRating: null,
-  sleepQuality: null,
-};
+function emptyForm(nightDate?: string): DreamFormValues {
+  return {
+    nightDate: nightDate ?? defaultNightDateForNow(),
+    text: "",
+    locations: [],
+    characters: [],
+    emotionIds: [],
+    tagIds: [],
+    dreamRating: null,
+    sleepQuality: null,
+  };
+}
 
 export function DreamFormPage() {
   const { id } = useParams<{ id: string }>();
+  const [searchParams] = useSearchParams();
   const isEdit = Boolean(id);
   const navigate = useNavigate();
   const { emotions, tags, addTag } = useAppState();
 
-  const [form, setForm] = useState<DreamFormValues>(emptyForm);
+  const [form, setForm] = useState<DreamFormValues>(() => emptyForm(searchParams.get("night") ?? undefined));
   const [audioNotes, setAudioNotes] = useState<AudioNote[]>([]);
+  const [allDreams, setAllDreams] = useState<Dream[]>([]);
   const [loading, setLoading] = useState(isEdit);
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    listDreams().then(setAllDreams);
+  }, []);
+
+  const emotionsById = useMemo(() => new Map(emotions.map((e) => [e.id, e])), [emotions]);
+  const tagsById = useMemo(() => new Map(tags.map((t) => [t.id, t])), [tags]);
+
+  const suggestedEmotions = useMemo(() => {
+    const counts = new Map(computeFrequency(allDreams, (d) => d.emotionIds, emotionsById).map((f) => [f.id, f.count]));
+    return [...emotions].sort((a, b) => (counts.get(b.id) ?? 0) - (counts.get(a.id) ?? 0));
+  }, [emotions, allDreams, emotionsById]);
+
+  const suggestedTags = useMemo(() => {
+    const counts = new Map(computeFrequency(allDreams, (d) => d.tagIds, tagsById).map((f) => [f.id, f.count]));
+    return [...tags].sort((a, b) => (counts.get(b.id) ?? 0) - (counts.get(a.id) ?? 0) || a.label.localeCompare(b.label));
+  }, [tags, allDreams, tagsById]);
 
   useEffect(() => {
     if (!id) return;
@@ -176,10 +199,10 @@ export function DreamFormPage() {
       />
 
       <p className="section-title">Émotions ressenties</p>
-      <EmotionChips emotions={emotions} selectedIds={form.emotionIds} onToggle={toggleEmotion} />
+      <EmotionChips emotions={suggestedEmotions} selectedIds={form.emotionIds} onToggle={toggleEmotion} />
 
       <p className="section-title">Tags</p>
-      <TagPicker allTags={tags} selectedIds={form.tagIds} onToggle={toggleTag} onCreate={addTag} />
+      <TagPicker allTags={suggestedTags} selectedIds={form.tagIds} onToggle={toggleTag} onCreate={addTag} />
 
       <p className="section-title">Note du rêve</p>
       <RatingSlider value={form.dreamRating} onChange={(v) => update("dreamRating", v)} />

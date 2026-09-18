@@ -10,10 +10,18 @@ mises à jour (voir plus bas), qui contacte l'API publique de GitHub.
 - Saisie rapide d'un rêve au réveil : texte libre, mémo vocal, lieux, personnages,
   émotions (liste éditable), tags libres, note du rêve /10.
 - Qualité du sommeil (1 à 5 étoiles), même les nuits sans rêve noté.
-- Recherche plein texte et filtres par tags / émotions.
+- Recherche plein texte (avec recherches récentes) et filtres par tags /
+  émotions (triés par fréquence d'usage) ; vue liste ou calendrier.
+- Sélection multiple dans la liste : suppression et ajout de tag groupés.
+  Glisser une entrée pour la supprimer, avec annulation temporaire.
 - Statistiques : évolution de la qualité du sommeil et de la note des rêves,
-  fréquence des émotions et des tags, corrélation sommeil ↔ rêves.
-- Thème Material Design 3, sombre par défaut (option claire).
+  fréquence des émotions et des tags, signes de rêve récurrents (déclencheurs
+  potentiels de rêve lucide), corrélation sommeil ↔ rêves.
+- Streak de nuits consécutives journalisées.
+- Thème Material Design 3 : Système / Clair / Sombre / Noir OLED, dégradé de
+  fond doux, et couleurs dynamiques du fond d'écran (Material You, Android 12+).
+- Rappel matinal optionnel (notification locale, aucune donnée envoyée) et
+  widget d'écran d'accueil pour noter un rêve directement.
 - Export/backup local (JSON + fichiers audio) pour changer de téléphone sans
   rien perdre.
 - Mise à jour intégrée : l'app n'étant pas sur le Play Store, elle peut
@@ -199,3 +207,8 @@ Côté technique :
 - L'export de sauvegarde (Réglages → Exporter mes données) écrit un dossier
   JSON + audio dans le stockage local de l'app (dossier Documents), à copier
   manuellement lors d'un changement de téléphone.
+- Le rappel matinal est une notification locale programmée sur l'appareil
+  (`@capacitor/local-notifications`) : aucun réseau, aucun serveur de push.
+- Les couleurs dynamiques (Réglages → Apparence) lisent uniquement les teintes
+  déjà calculées par Android à partir du fond d'écran (ressources système
+  `system_accentN_*`) — jamais l'image du fond d'écran elle-même.

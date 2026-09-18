@@ -18,7 +18,30 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!--
+              Lien profond interne (pas un lien web) utilisé par le widget d'écran d'accueil pour
+              ouvrir directement le formulaire de saisie : io.karelisio.lucide://dreams/new.
+              Intercepté côté JS via le plugin App de Capacitor (appUrlOpen).
+            -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="io.karelisio.lucide" />
+            </intent-filter>
         </activity>
+
+        <receiver
+            android:name=".DreamWidgetProvider"
+            android:exported="true"
+            android:label="@string/widget_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/dream_widget_info" />
+        </receiver>
 
         <provider
             android:name="androidx.core.content.FileProvider"

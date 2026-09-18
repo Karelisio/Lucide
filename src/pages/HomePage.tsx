@@ -8,12 +8,14 @@ import { useAppState } from "../state/AppStateContext";
 import { addAudioNote, getOrCreateNightPlaceholder, listDreams, updateSleepQualityOnly } from "../db/dreamRepository";
 import type { Dream } from "../types";
 import { defaultNightDateForNow, formatNightLabel } from "../utils/format";
+import { computeStreak } from "../utils/stats";
 import type { RecordingResult } from "../audio/audioRecorder";
 
 export function HomePage() {
   const navigate = useNavigate();
   const { emotions, tags } = useAppState();
   const [recentDreams, setRecentDreams] = useState<Dream[]>([]);
+  const [streak, setStreak] = useState(0);
   const [sleepQuality, setSleepQuality] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const nightDate = defaultNightDateForNow();
@@ -25,6 +27,7 @@ export function HomePage() {
     (async () => {
       const dreams = await listDreams();
       setRecentDreams(dreams.slice(0, 5));
+      setStreak(computeStreak(dreams));
       const placeholder = dreams.find((d) => d.nightDate === nightDate);
       setSleepQuality(placeholder?.sleepQuality ?? null);
       setLoading(false);
@@ -48,6 +51,16 @@ export function HomePage() {
       <div className="top-app-bar" style={{ margin: "-16px -16px 16px", background: "transparent", border: "none" }}>
         <Icon name="moon" size={26} />
         <h1>Lucide</h1>
+        <div className="spacer" />
+        {streak >= 2 && (
+          <span
+            className="badge badge-rating"
+            style={{ display: "inline-flex", alignItems: "center", gap: 4 }}
+            title="Nuits consécutives journalisées"
+          >
+            <Icon name="flame" size={14} /> {streak}
+          </span>
+        )}
       </div>
 
       <div className="card" style={{ textAlign: "center", marginBottom: 20 }}>

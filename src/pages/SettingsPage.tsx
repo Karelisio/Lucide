@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Capacitor } from "@capacitor/core";
 import { Icon } from "../components/Icon";
 import { useAppState } from "../state/AppStateContext";
@@ -6,11 +6,35 @@ import { exportBackup } from "../utils/backup";
 import { CHANGELOG, CURRENT_VERSION } from "../changelog";
 import { formatShortDate } from "../utils/format";
 import { checkForUpdate, downloadAndInstall, type AvailableUpdate } from "../utils/updateChecker";
+import { cancelMorningReminder, isReminderSupported, scheduleMorningReminder } from "../utils/reminder";
+import { getSetting, setSetting } from "../db/dreamRepository";
+import type { ThemeMode } from "../types";
 
 type UpdateStatus = "idle" | "checking" | "up-to-date" | "available" | "downloading" | "error";
 
+const THEME_OPTIONS: Array<{ mode: ThemeMode; label: string }> = [
+  { mode: "system", label: "Système" },
+  { mode: "light", label: "Clair" },
+  { mode: "dark", label: "Sombre" },
+  { mode: "oled", label: "Noir OLED" },
+];
+
 export function SettingsPage() {
-  const { theme, setTheme, emotions, tags, addEmotion, removeEmotion, addTag, removeTag } = useAppState();
+  const {
+    theme,
+    resolvedTheme,
+    setTheme,
+    dynamicColorSupported,
+    dynamicColorEnabled,
+    dynamicColorError,
+    setDynamicColorEnabled,
+    emotions,
+    tags,
+    addEmotion,
+    removeEmotion,
+    addTag,
+    removeTag,
+  } = useAppState();
   const [newEmotionLabel, setNewEmotionLabel] = useState("");
   const [newEmotionEmoji, setNewEmotionEmoji] = useState("✨");
   const [newTagLabel, setNewTagLabel] = useState("");
@@ -21,6 +45,49 @@ export function SettingsPage() {
   const [updateError, setUpdateError] = useState<string | null>(null);
   const [downloadProgress, setDownloadProgress] = useState(0);
   const canInstall = Capacitor.getPlatform() === "android";
+  const reminderSupported = isReminderSupported();
+  const [reminderEnabled, setReminderEnabledState] = useState(false);
+  const [reminderTime, setReminderTimeState] = useState("08:00");
+  const [reminderError, setReminderError] = useState<string | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      const enabled = await getSetting("reminder_enabled");
+      const time = await getSetting("reminder_time");
+      if (enabled === "1") setReminderEnabledState(true);
+      if (time) setReminderTimeState(time);
+    })();
+  }, []);
+
+  async function applyReminder(enabled: boolean, time: string): Promise<boolean> {
+    setReminderError(null);
+    try {
+      if (enabled) {
+        const [hour, minute] = time.split(":").map(Number);
+        await scheduleMorningReminder({ hour, minute });
+      } else {
+        await cancelMorningReminder();
+      }
+      return true;
+    } catch (e) {
+      setReminderError(e instanceof Error ? e.message : "Impossible d'activer le rappel.");
+      return false;
+    }
+  }
+
+  async function handleToggleReminder() {
+    const next = !reminderEnabled;
+    const ok = await applyReminder(next, reminderTime);
+    if (!ok) return;
+    setReminderEnabledState(next);
+    await setSetting("reminder_enabled", next ? "1" : "0");
+  }
+
+  async function handleReminderTimeChange(time: string) {
+    setReminderTimeState(time);
+    await setSetting("reminder_time", time);
+    if (reminderEnabled) await applyReminder(true, time);
+  }
 
   async function handleAddEmotion() {
     if (!newEmotionLabel.trim()) return;
@@ -88,18 +155,52 @@ export function SettingsPage() {
       </div>
 
       <p className="section-title">Apparence</p>
-      <div className="switch-row">
-        <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <Icon name={theme === "dark" ? "moon" : "sun"} size={18} />
-          Thème sombre
+      <div className="card">
+        <span style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+          <Icon name={resolvedTheme === "light" ? "sun" : "moon"} size={18} />
+          Thème
         </span>
-        <button
-          type="button"
-          className="btn btn-tonal"
-          onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-        >
-          {theme === "dark" ? "Activé" : "Désactivé"}
-        </button>
+        <div className="segmented" style={{ display: "flex", width: "100%" }}>
+          {THEME_OPTIONS.map((opt) => (
+            <button
+              key={opt.mode}
+              type="button"
+              className={theme === opt.mode ? "active" : ""}
+              style={{ flex: 1 }}
+              onClick={() => setTheme(opt.mode)}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+        <p style={{ fontSize: 12, marginTop: 10, color: "var(--md-sys-color-on-surface-variant)" }}>
+          « Système » suit le réglage clair/sombre de ton téléphone. Le noir OLED économise la batterie sur les
+          écrans à diodes (une nuit par écran, littéralement).
+        </p>
+
+        {dynamicColorSupported && (
+          <div className="switch-row" style={{ marginTop: 4, borderTop: "1px solid var(--md-sys-color-outline-variant)" }}>
+            <span>
+              Couleurs de mon fond d'écran
+              <br />
+              <span style={{ fontSize: 12, color: "var(--md-sys-color-on-surface-variant)" }}>
+                Material You — Android 12 et plus
+              </span>
+            </span>
+            <button
+              type="button"
+              className="btn btn-tonal"
+              onClick={() => setDynamicColorEnabled(!dynamicColorEnabled)}
+            >
+              {dynamicColorEnabled ? "Activé" : "Désactivé"}
+            </button>
+          </div>
+        )}
+        {dynamicColorEnabled && dynamicColorError && (
+          <p style={{ fontSize: 12, marginTop: 8, color: "var(--md-sys-color-error)" }}>
+            {dynamicColorError} La palette par défaut de Lucide est utilisée à la place.
+          </p>
+        )}
       </div>
 
       <p className="section-title">Émotions</p>
@@ -174,6 +275,37 @@ export function SettingsPage() {
           <p style={{ fontSize: 13, marginTop: 12, color: "var(--md-sys-color-on-surface-variant)" }}>{exportMessage}</p>
         )}
       </div>
+
+      {reminderSupported && (
+        <>
+          <p className="section-title">Rappels</p>
+          <div className="card">
+            <div className="switch-row" style={{ border: "none", padding: "0 0 8px" }}>
+              <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <Icon name="bell" size={18} />
+                Rappel matinal
+              </span>
+              <button type="button" className="btn btn-tonal" onClick={handleToggleReminder}>
+                {reminderEnabled ? "Activé" : "Désactivé"}
+              </button>
+            </div>
+            <p style={{ fontSize: 13, color: "var(--md-sys-color-on-surface-variant)", marginBottom: reminderEnabled ? 14 : 0 }}>
+              Une notification locale (jamais de réseau) pour penser à noter ton rêve avant qu'il ne s'efface.
+            </p>
+            {reminderEnabled && (
+              <input
+                type="time"
+                className="text-field"
+                value={reminderTime}
+                onChange={(e) => handleReminderTimeChange(e.target.value)}
+              />
+            )}
+            {reminderError && (
+              <p style={{ fontSize: 13, marginTop: 10, color: "var(--md-sys-color-error)" }}>{reminderError}</p>
+            )}
+          </div>
+        </>
+      )}
 
       <p className="section-title">Mises à jour</p>
       <div className="card">

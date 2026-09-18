@@ -64,12 +64,16 @@ Pour publier une nouvelle version :
    }
    ```
 
-2. Committez, puis créez et poussez un tag correspondant (avec le préfixe `v`) :
+2. Committez sur `main`, puis déclenchez la release, au choix :
+   - **Depuis GitHub** : onglet *Actions → Build Android APK → Run workflow*
+     (déclenchement manuel) — le workflow crée lui-même le tag `v1.1.0`
+     correspondant à `changelog.json` et publie la release.
+   - **Depuis la ligne de commande** : créez et poussez le tag vous-même :
 
-   ```bash
-   git tag v1.1.0
-   git push origin v1.1.0
-   ```
+     ```bash
+     git tag v1.1.0
+     git push origin v1.1.0
+     ```
 
 Le tag doit correspondre exactement à la version en tête de `changelog.json` —
 la CI refuse le build sinon (garde-fou pour ne pas oublier de mettre à jour le

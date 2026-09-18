@@ -1,4 +1,4 @@
-import { Capacitor } from "@capacitor/core";
+import { Capacitor, CapacitorHttp } from "@capacitor/core";
 import { Directory, Filesystem } from "@capacitor/filesystem";
 import { CURRENT_VERSION } from "../changelog";
 import { isVersionNewer } from "./version";
@@ -26,13 +26,28 @@ interface GithubRelease {
 }
 
 /**
- * Vérifie s'il existe une release GitHub plus récente que la version installée.
- * Seule requête réseau de l'app, déclenchée uniquement à la demande de l'utilisateur.
+ * Récupère la dernière release via le client HTTP natif Android plutôt que
+ * `fetch` de la WebView : sur certains réseaux/téléphones, `fetch` vers un
+ * domaine tiers échoue silencieusement ("Failed to fetch") alors que le
+ * client réseau natif fonctionne normalement.
  */
-export async function checkForUpdate(): Promise<AvailableUpdate | null> {
-  const res = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`, {
-    headers: { Accept: "application/vnd.github+json" },
-  });
+async function fetchLatestRelease(): Promise<GithubRelease> {
+  const url = `https://api.github.com/repos/${REPO}/releases/latest`;
+  const headers = { Accept: "application/vnd.github+json" };
+
+  if (Capacitor.isNativePlatform()) {
+    const res = await CapacitorHttp.get({ url, headers });
+    if (res.status < 200 || res.status >= 300) {
+      throw new Error(
+        res.status === 404
+          ? "Aucune release trouvée (le dépôt est peut-être privé)."
+          : `Impossible de vérifier les mises à jour (HTTP ${res.status}).`,
+      );
+    }
+    return res.data as GithubRelease;
+  }
+
+  const res = await fetch(url, { headers });
   if (!res.ok) {
     throw new Error(
       res.status === 404
@@ -40,7 +55,15 @@ export async function checkForUpdate(): Promise<AvailableUpdate | null> {
         : `Impossible de vérifier les mises à jour (HTTP ${res.status}).`,
     );
   }
-  const data = (await res.json()) as GithubRelease;
+  return (await res.json()) as GithubRelease;
+}
+
+/**
+ * Vérifie s'il existe une release GitHub plus récente que la version installée.
+ * Seule requête réseau de l'app, déclenchée uniquement à la demande de l'utilisateur.
+ */
+export async function checkForUpdate(): Promise<AvailableUpdate | null> {
+  const data = await fetchLatestRelease();
   const version = String(data.tag_name ?? "").replace(/^v/, "");
   if (!version || !isVersionNewer(version, CURRENT_VERSION)) {
     return null;

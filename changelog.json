@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.1.1",
+    "date": "2026-09-18",
+    "notes": [
+      "Correction : la vérification des mises à jour pouvait échouer (« Failed to fetch ») sur certains réseaux/téléphones. La requête passe maintenant par le client réseau natif d'Android au lieu de la WebView."
+    ]
+  },
+  {
     "version": "1.1.0",
     "date": "2026-09-18",
     "notes": [

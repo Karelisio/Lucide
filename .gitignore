@@ -1,0 +1,36 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Copié depuis sql.js au build (voir scripts/copy-sqlite-wasm.mjs)
+public/assets/sql-wasm.wasm
+
+# Android (généré par `npx cap add android`, ne pas committer les artefacts de build)
+android/app/build
+android/build
+android/.gradle
+android/local.properties
+android/keystore.properties
+android/*.keystore
+*.jks
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?

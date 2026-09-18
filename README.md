@@ -1,1 +1,116 @@
-# Lucide
+# Lucide 🌙
+
+Journal de rêves **100 % hors ligne**. Aucune donnée (texte, tags, mémos audio) ne
+quitte jamais l'appareil : pas de backend, pas d'analytics, pas de tracking.
+
+## Fonctionnalités
+
+- Saisie rapide d'un rêve au réveil : texte libre, mémo vocal, lieux, personnages,
+  émotions (liste éditable), tags libres, note du rêve /10.
+- Qualité du sommeil (1 à 5 étoiles), même les nuits sans rêve noté.
+- Recherche plein texte et filtres par tags / émotions.
+- Statistiques : évolution de la qualité du sommeil et de la note des rêves,
+  fréquence des émotions et des tags, corrélation sommeil ↔ rêves.
+- Thème Material Design 3, sombre par défaut (option claire).
+- Export/backup local (JSON + fichiers audio) pour changer de téléphone sans
+  rien perdre.
+
+## Stack technique
+
+- **Frontend** : React + TypeScript + Vite.
+- **Stockage** : SQLite local via `@capacitor-community/sqlite` (natif sur
+  Android, WASM/IndexedDB via `jeep-sqlite` pour le développement web).
+- **Audio** : `capacitor-voice-recorder` (gestion native des permissions
+  microphone) + `@capacitor/filesystem` pour le stockage des mémos.
+- **Empaquetage Android** : Capacitor.
+
+## Développement
+
+```bash
+npm install
+npm run dev       # serveur de dev web (http://localhost:5173)
+npm run build     # build de production dans dist/
+npm run lint      # oxlint
+```
+
+> `npm run dev` / `npm run build` copient automatiquement le moteur SQLite/WASM
+> (`sql.js`) vers `public/assets/sql-wasm.wasm` via `scripts/copy-sqlite-wasm.mjs`.
+> Ce fichier n'est pas commité : il doit rester synchronisé avec la version de
+> `sql.js` épinglée dans `devDependencies` (voir le commentaire du script si
+> vous devez la faire évoluer — `jeep-sqlite` embarque un glue code Emscripten
+> qui n'est compatible qu'avec une version précise du binaire `.wasm`).
+
+## Build Android local
+
+```bash
+npm run build
+npx cap sync android
+npx cap open android   # ouvre Android Studio
+# ou, en ligne de commande :
+cd android && ./gradlew assembleDebug
+```
+
+Sans `android/keystore.properties`, `assembleRelease` produit un APK **non
+signé** (pratique pour vérifier que le build passe). Pour un APK release signé
+en local, créez ce fichier (voir ci-dessous) sans le commiter.
+
+## Signature Android & CI/CD
+
+Le workflow [`.github/workflows/android-release.yml`](.github/workflows/android-release.yml)
+build automatiquement l'app à chaque push sur `main` (ou sur un tag `v*`) :
+installe les dépendances, build le frontend, `cap sync`, puis compile et signe
+l'APK release avec un keystore fourni via les secrets du dépôt. L'APK est
+publié comme artefact de build, et comme release GitHub sur un tag `v*`.
+
+### 1. Générer un keystore de release
+
+À faire **une seule fois** ; ce même keystore doit être réutilisé pour toutes
+les versions futures (une signature différente empêcherait la mise à jour de
+l'app sans désinstallation préalable). Gardez ce fichier et son mot de passe
+en lieu sûr, en dehors du dépôt.
+
+```bash
+keytool -genkeypair -v \
+  -keystore lucide-release.keystore \
+  -alias lucide \
+  -keyalg RSA -keysize 2048 -validity 10000
+```
+
+Répondez aux questions (nom, organisation, etc.) puis choisissez un mot de
+passe pour le keystore et pour la clé (vous pouvez utiliser le même).
+
+### 2. Encoder le keystore en base64
+
+```bash
+base64 -w0 lucide-release.keystore > lucide-release.keystore.b64   # Linux
+# base64 -i lucide-release.keystore | tr -d '\n' > lucide-release.keystore.b64   # macOS
+```
+
+### 3. Configurer les secrets du dépôt GitHub
+
+Dans *Settings → Secrets and variables → Actions*, créez :
+
+| Secret | Contenu |
+|---|---|
+| `ANDROID_KEYSTORE_BASE64` | Contenu du fichier `.b64` généré ci-dessus |
+| `ANDROID_KEYSTORE_PASSWORD` | Mot de passe du keystore |
+| `ANDROID_KEY_ALIAS` | Alias de la clé (`lucide` dans l'exemple ci-dessus) |
+| `ANDROID_KEY_PASSWORD` | Mot de passe de la clé |
+
+Le workflow décode `ANDROID_KEYSTORE_BASE64` dans `android/app/release.keystore`
+et génère un `android/keystore.properties` éphémère (supprimé en fin de job)
+que `android/app/build.gradle` utilise pour signer l'APK release.
+
+## Confidentialité
+
+- Aucune requête réseau applicative : Lucide ne contacte aucun serveur.
+- La permission Internet déclarée dans le manifeste Android est requise par le
+  moteur WebView pour servir le contenu local de l'app (contrainte du système,
+  pas un besoin de l'application) — voir le commentaire dans
+  `android/app/src/main/AndroidManifest.xml`.
+- La permission microphone est demandée à la première utilisation du bouton
+  d'enregistrement, avec l'intitulé du système décrivant son usage (mémos
+  vocaux de rêves, stockés uniquement en local).
+- L'export de sauvegarde (Réglages → Exporter mes données) écrit un dossier
+  JSON + audio dans le stockage local de l'app (dossier Documents), à copier
+  manuellement lors d'un changement de téléphone.

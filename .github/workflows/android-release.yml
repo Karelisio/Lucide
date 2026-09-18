@@ -39,6 +39,12 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          # Le package SDK historique `tools` (installé par défaut par l'action)
+          # n'existe plus dans le dépôt Android et fait échouer sdkmanager.
+          # `platform-tools` suffit : Gradle télécharge lui-même la plateforme
+          # android-36 et les build-tools, les licences étant acceptées par l'action.
+          packages: platform-tools
 
       - name: Compute app version
         id: version

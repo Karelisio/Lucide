@@ -2,6 +2,8 @@ import { useState } from "react";
 import { Icon } from "../components/Icon";
 import { useAppState } from "../state/AppStateContext";
 import { exportBackup } from "../utils/backup";
+import { CHANGELOG, CURRENT_VERSION } from "../changelog";
+import { formatShortDate } from "../utils/format";
 
 export function SettingsPage() {
   const { theme, setTheme, emotions, tags, addEmotion, removeEmotion, addTag, removeTag } = useAppState();
@@ -135,10 +137,27 @@ export function SettingsPage() {
 
       <p className="section-title">À propos</p>
       <div className="card">
-        <p style={{ fontSize: 13, color: "var(--md-sys-color-on-surface-variant)", lineHeight: 1.6 }}>
+        <p style={{ fontSize: 13, color: "var(--md-sys-color-on-surface-variant)", lineHeight: 1.6, marginBottom: 12 }}>
           Lucide fonctionne entièrement hors ligne. Toutes tes données (texte, tags, audio) restent stockées
           uniquement sur cet appareil, dans une base SQLite locale. Aucune donnée n'est transmise à un serveur.
         </p>
+        <p style={{ fontSize: 13, color: "var(--md-sys-color-on-surface-variant)" }}>Version {CURRENT_VERSION}</p>
+      </div>
+
+      <p className="section-title">Historique des versions</p>
+      <div className="card">
+        {CHANGELOG.map((entry, i) => (
+          <div key={entry.version} style={{ paddingTop: i === 0 ? 0 : 16, marginTop: i === 0 ? 0 : 16, borderTop: i === 0 ? "none" : "1px solid var(--md-sys-color-outline-variant)" }}>
+            <p className="field-label" style={{ marginBottom: 8 }}>
+              Version {entry.version} · {formatShortDate(entry.date)}
+            </p>
+            <ul style={{ margin: 0, paddingLeft: 20, lineHeight: 1.6, fontSize: 14 }}>
+              {entry.notes.map((note, j) => (
+                <li key={j}>{note}</li>
+              ))}
+            </ul>
+          </div>
+        ))}
       </div>
     </div>
   );

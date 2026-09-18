@@ -2,6 +2,7 @@ import { HashRouter, Navigate, Outlet, Route, Routes } from "react-router-dom";
 import { AppStateProvider, useAppState } from "./state/AppStateContext";
 import { BottomNav } from "./components/BottomNav";
 import { Icon } from "./components/Icon";
+import { WhatsNewGate } from "./components/WhatsNewGate";
 import { HomePage } from "./pages/HomePage";
 import { DreamsListPage } from "./pages/DreamsListPage";
 import { DreamFormPage } from "./pages/DreamFormPage";
@@ -16,6 +17,7 @@ function Layout() {
         <Outlet />
       </div>
       <BottomNav />
+      <WhatsNewGate />
     </div>
   );
 }

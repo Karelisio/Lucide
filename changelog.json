@@ -1,0 +1,14 @@
+[
+  {
+    "version": "1.0.0",
+    "date": "2026-09-18",
+    "notes": [
+      "Première version de Lucide.",
+      "Saisie de rêves : texte, mémo vocal, lieux, personnages, émotions, tags, note /10.",
+      "Qualité du sommeil (1 à 5 étoiles), avec ou sans rêve noté.",
+      "Recherche et filtres par tags / émotions.",
+      "Statistiques : évolution du sommeil et des rêves, fréquences, corrélation.",
+      "Export/backup local (JSON + audio). Aucune donnée ne quitte l'appareil."
+    ]
+  }
+]

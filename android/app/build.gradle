@@ -11,6 +11,12 @@ if (hasKeystoreConfig) {
     keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
 }
 
+// Numéro de version : injecté par la CI (APP_VERSION_NAME depuis changelog.json,
+// APP_VERSION_CODE depuis le numéro de run GitHub Actions, toujours croissant).
+// En local, à défaut de ces variables, on retombe sur des valeurs par défaut.
+def appVersionName = System.getenv("APP_VERSION_NAME") ?: "1.0.0"
+def appVersionCode = (System.getenv("APP_VERSION_CODE") ?: "1") as Integer
+
 android {
     namespace = "io.karelisio.lucide"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -18,8 +24,8 @@ android {
         applicationId "io.karelisio.lucide"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode appVersionCode
+        versionName appVersionName
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.

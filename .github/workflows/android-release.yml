@@ -40,6 +40,37 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
+      - name: Compute app version
+        id: version
+        run: |
+          VERSION_NAME=$(node -p "require('./changelog.json')[0].version")
+          VERSION_CODE="${{ github.run_number }}"
+          echo "Version calculée : $VERSION_NAME (code $VERSION_CODE)"
+
+          # Sur un push de tag v*, le tag doit correspondre à la version en tête de
+          # changelog.json — ça évite de publier une release sans changelog à jour,
+          # ou avec un numéro de version qui ne correspond à rien.
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            TAG_VERSION="${GITHUB_REF#refs/tags/v}"
+            if [ "$TAG_VERSION" != "$VERSION_NAME" ]; then
+              echo "::error::Le tag v$TAG_VERSION ne correspond pas à la version en tête de changelog.json ($VERSION_NAME). Ajoute une entrée $TAG_VERSION dans changelog.json avant de pousser ce tag."
+              exit 1
+            fi
+          fi
+
+          echo "name=$VERSION_NAME" >> "$GITHUB_OUTPUT"
+          echo "APP_VERSION_NAME=$VERSION_NAME" >> "$GITHUB_ENV"
+          echo "APP_VERSION_CODE=$VERSION_CODE" >> "$GITHUB_ENV"
+
+      - name: Build release notes from changelog
+        id: notes
+        run: |
+          {
+            echo "body<<CHANGELOG_EOF"
+            node -e "const c=require('./changelog.json')[0]; console.log(c.notes.map(n => '- ' + n).join('\n'))"
+            echo "CHANGELOG_EOF"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Decode release keystore
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -92,5 +123,6 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
+          name: "Lucide v${{ steps.version.outputs.name }}"
+          body: ${{ steps.notes.outputs.body }}
           files: ${{ steps.apk.outputs.path }}
-          generate_release_notes: true

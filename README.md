@@ -40,6 +40,50 @@ npm run lint      # oxlint
 > vous devez la faire évoluer — `jeep-sqlite` embarque un glue code Emscripten
 > qui n'est compatible qu'avec une version précise du binaire `.wasm`).
 
+## Versions & changelog
+
+Le fichier [`changelog.json`](changelog.json) (racine du dépôt) est la seule
+source de vérité pour le numéro de version, à la fois pour l'app et pour l'APK
+Android — **il n'y a rien d'autre à modifier** (le `versionCode` Android est
+géré automatiquement par la CI, voir plus bas).
+
+Pour publier une nouvelle version :
+
+1. Ajoutez une entrée **en tête** de `changelog.json` :
+
+   ```json
+   {
+     "version": "1.1.0",
+     "date": "2026-10-02",
+     "notes": ["Ce qui a changé, une puce par changement notable."]
+   }
+   ```
+
+2. Committez, puis créez et poussez un tag correspondant (avec le préfixe `v`) :
+
+   ```bash
+   git tag v1.1.0
+   git push origin v1.1.0
+   ```
+
+Le tag doit correspondre exactement à la version en tête de `changelog.json` —
+la CI refuse le build sinon (garde-fou pour ne pas oublier de mettre à jour le
+changelog). À chaque build :
+
+- Le **`versionName`** Android est lu depuis `changelog.json[0].version`.
+- Le **`versionCode`** Android (l'entier interne qui doit toujours augmenter)
+  est le numéro de run GitHub Actions (`github.run_number`) — jamais besoin d'y
+  penser manuellement.
+- La **release GitHub** créée sur le tag reprend automatiquement les notes de
+  cette entrée comme description.
+- Dans l'app, un écran **« Nouveautés »** s'affiche automatiquement au premier
+  lancement suivant une mise à jour (comparaison avec la dernière version vue,
+  mémorisée en base locale), et l'historique complet reste consultable dans
+  *Réglages → Historique des versions*.
+
+Un simple push sur `main` sans tag build aussi l'APK (utile pour vérifier que
+tout compile) mais ne crée pas de release GitHub.
+
 ## Build Android local
 
 ```bash

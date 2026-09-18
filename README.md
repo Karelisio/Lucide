@@ -1,7 +1,9 @@
 # Lucide 🌙
 
 Journal de rêves **100 % hors ligne**. Aucune donnée (texte, tags, mémos audio) ne
-quitte jamais l'appareil : pas de backend, pas d'analytics, pas de tracking.
+quitte jamais l'appareil : pas de backend, pas d'analytics, pas de tracking. Seule
+exception, à la demande explicite de l'utilisateur : la vérification manuelle des
+mises à jour (voir plus bas), qui contacte l'API publique de GitHub.
 
 ## Fonctionnalités
 
@@ -14,6 +16,9 @@ quitte jamais l'appareil : pas de backend, pas d'analytics, pas de tracking.
 - Thème Material Design 3, sombre par défaut (option claire).
 - Export/backup local (JSON + fichiers audio) pour changer de téléphone sans
   rien perdre.
+- Mise à jour intégrée : l'app n'étant pas sur le Play Store, elle peut
+  vérifier elle-même (à la demande) si une nouvelle release GitHub existe et
+  proposer de télécharger + installer l'APK.
 
 ## Stack technique
 
@@ -145,13 +150,45 @@ Le workflow décode `ANDROID_KEYSTORE_BASE64` dans `android/app/release.keystore
 et génère un `android/keystore.properties` éphémère (supprimé en fin de job)
 que `android/app/build.gradle` utilise pour signer l'APK release.
 
+## Mise à jour intégrée à l'app
+
+Lucide n'étant pas distribué via le Play Store, il n'y a pas de mise à jour
+automatique par le système. À la place, *Réglages → Mises à jour* permet de :
+
+1. Vérifier manuellement (bouton, jamais automatique/en arrière-plan) s'il
+   existe une release GitHub plus récente que la version installée, via l'API
+   publique `GET /repos/Karelisio/Lucide/releases/latest`.
+2. Télécharger l'APK de cette release et lancer l'installateur système
+   Android (écran de confirmation natif, comme pour toute installation
+   d'APK hors Play Store).
+
+**Prérequis : le dépôt GitHub doit être public** (ou au moins ses releases
+accessibles), car l'app n'embarque aucun token d'authentification — en mettre
+un dans le code d'une app cliente le rendrait extractible par n'importe qui.
+Si le dépôt est privé, la vérification échoue proprement avec un message
+d'erreur, sans casser le reste de l'app.
+
+Côté technique :
+
+- `src/utils/updateChecker.ts` : appel à l'API GitHub, téléchargement de
+  l'APK (avec progression), écriture dans le cache de l'app.
+- `android/app/src/main/java/io/karelisio/lucide/ApkInstallerPlugin.java` :
+  petit plugin Capacitor natif maison qui ouvre l'installateur système sur
+  l'APK téléchargé (via `FileProvider` + `Intent.ACTION_VIEW`).
+- Permission `REQUEST_INSTALL_PACKAGES` déclarée dans le manifeste (nécessaire
+  pour proposer une installation depuis une app qui n'est pas elle-même
+  distribuée via le Play Store ; Android affiche son propre écran de
+  confirmation avant toute installation).
+
 ## Confidentialité
 
-- Aucune requête réseau applicative : Lucide ne contacte aucun serveur.
-- La permission Internet déclarée dans le manifeste Android est requise par le
-  moteur WebView pour servir le contenu local de l'app (contrainte du système,
-  pas un besoin de l'application) — voir le commentaire dans
-  `android/app/src/main/AndroidManifest.xml`.
+- Lucide ne contacte aucun serveur pour ses données (rêves, tags, audio) —
+  la seule requête réseau de toute l'app est la vérification manuelle des
+  mises à jour ci-dessus, déclenchée uniquement par un tap explicite.
+- La permission Internet déclarée dans le manifeste Android est aussi requise
+  par le moteur WebView pour servir le contenu local de l'app (contrainte du
+  système, indépendante de la fonctionnalité de mise à jour) — voir le
+  commentaire dans `android/app/src/main/AndroidManifest.xml`.
 - La permission microphone est demandée à la première utilisation du bouton
   d'enregistrement, avec l'intitulé du système décrivant son usage (mémos
   vocaux de rêves, stockés uniquement en local).

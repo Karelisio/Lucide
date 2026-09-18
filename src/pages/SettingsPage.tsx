@@ -1,9 +1,13 @@
 import { useState } from "react";
+import { Capacitor } from "@capacitor/core";
 import { Icon } from "../components/Icon";
 import { useAppState } from "../state/AppStateContext";
 import { exportBackup } from "../utils/backup";
 import { CHANGELOG, CURRENT_VERSION } from "../changelog";
 import { formatShortDate } from "../utils/format";
+import { checkForUpdate, downloadAndInstall, type AvailableUpdate } from "../utils/updateChecker";
+
+type UpdateStatus = "idle" | "checking" | "up-to-date" | "available" | "downloading" | "error";
 
 export function SettingsPage() {
   const { theme, setTheme, emotions, tags, addEmotion, removeEmotion, addTag, removeTag } = useAppState();
@@ -12,6 +16,11 @@ export function SettingsPage() {
   const [newTagLabel, setNewTagLabel] = useState("");
   const [exporting, setExporting] = useState(false);
   const [exportMessage, setExportMessage] = useState<string | null>(null);
+  const [updateStatus, setUpdateStatus] = useState<UpdateStatus>("idle");
+  const [availableUpdate, setAvailableUpdate] = useState<AvailableUpdate | null>(null);
+  const [updateError, setUpdateError] = useState<string | null>(null);
+  const [downloadProgress, setDownloadProgress] = useState(0);
+  const canInstall = Capacitor.getPlatform() === "android";
 
   async function handleAddEmotion() {
     if (!newEmotionLabel.trim()) return;
@@ -38,6 +47,37 @@ export function SettingsPage() {
       setExportMessage(e instanceof Error ? `Échec de l'export : ${e.message}` : "Échec de l'export.");
     } finally {
       setExporting(false);
+    }
+  }
+
+  async function handleCheckUpdate() {
+    setUpdateStatus("checking");
+    setUpdateError(null);
+    try {
+      const update = await checkForUpdate();
+      if (update) {
+        setAvailableUpdate(update);
+        setUpdateStatus("available");
+      } else {
+        setUpdateStatus("up-to-date");
+      }
+    } catch (e) {
+      setUpdateError(e instanceof Error ? e.message : "Vérification impossible.");
+      setUpdateStatus("error");
+    }
+  }
+
+  async function handleInstallUpdate() {
+    if (!availableUpdate) return;
+    setUpdateStatus("downloading");
+    setDownloadProgress(0);
+    setUpdateError(null);
+    try {
+      await downloadAndInstall(availableUpdate, setDownloadProgress);
+      setUpdateStatus("idle");
+    } catch (e) {
+      setUpdateError(e instanceof Error ? e.message : "Échec de l'installation.");
+      setUpdateStatus("error");
     }
   }
 
@@ -132,6 +172,73 @@ export function SettingsPage() {
         </button>
         {exportMessage && (
           <p style={{ fontSize: 13, marginTop: 12, color: "var(--md-sys-color-on-surface-variant)" }}>{exportMessage}</p>
+        )}
+      </div>
+
+      <p className="section-title">Mises à jour</p>
+      <div className="card">
+        <p style={{ fontSize: 14, marginBottom: 14, color: "var(--md-sys-color-on-surface-variant)" }}>
+          Lucide n'étant pas distribué via le Play Store, les mises à jour se font ici. Seule cette vérification
+          manuelle contacte le réseau (l'API publique de GitHub) — jamais tes rêves.
+        </p>
+
+        {updateStatus !== "downloading" && (
+          <button type="button" className="btn btn-tonal btn-block" onClick={handleCheckUpdate} disabled={updateStatus === "checking"}>
+            {updateStatus === "checking" ? "Vérification…" : "Vérifier les mises à jour"}
+          </button>
+        )}
+
+        {updateStatus === "up-to-date" && (
+          <p style={{ fontSize: 13, marginTop: 12, color: "var(--md-sys-color-on-surface-variant)" }}>
+            <Icon name="check" size={14} /> Tu as déjà la dernière version ({CURRENT_VERSION}).
+          </p>
+        )}
+
+        {updateStatus === "error" && updateError && (
+          <p style={{ fontSize: 13, marginTop: 12, color: "var(--md-sys-color-error)" }}>{updateError}</p>
+        )}
+
+        {updateStatus === "available" && availableUpdate && (
+          <div style={{ marginTop: 16 }}>
+            <p className="field-label" style={{ marginBottom: 8 }}>
+              Version {availableUpdate.version} disponible
+            </p>
+            {availableUpdate.notes.length > 0 && (
+              <ul style={{ margin: "0 0 14px", paddingLeft: 20, lineHeight: 1.6, fontSize: 14 }}>
+                {availableUpdate.notes.map((note, i) => (
+                  <li key={i}>{note}</li>
+                ))}
+              </ul>
+            )}
+            {canInstall ? (
+              <button type="button" className="btn btn-filled btn-block" onClick={handleInstallUpdate}>
+                <Icon name="download" size={18} />
+                Télécharger et installer
+              </button>
+            ) : (
+              <p style={{ fontSize: 13, color: "var(--md-sys-color-on-surface-variant)" }}>
+                Le téléchargement et l'installation ne sont possibles que depuis l'app Android installée.
+              </p>
+            )}
+          </div>
+        )}
+
+        {updateStatus === "downloading" && (
+          <div style={{ marginTop: 12 }}>
+            <p style={{ fontSize: 13, marginBottom: 8, color: "var(--md-sys-color-on-surface-variant)" }}>
+              Téléchargement… {downloadProgress > 0 ? `${downloadProgress}%` : ""}
+            </p>
+            <div style={{ height: 6, borderRadius: 999, background: "var(--md-sys-color-surface-container-high)", overflow: "hidden" }}>
+              <div
+                style={{
+                  height: "100%",
+                  width: `${downloadProgress}%`,
+                  background: "var(--md-sys-color-primary)",
+                  transition: "width 0.2s",
+                }}
+              />
+            </div>
+          </div>
         )}
       </div>
 

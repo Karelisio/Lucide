@@ -34,11 +34,21 @@
     <!--
       Requise par le moteur WebView d'Android pour servir le contenu local de
       l'application (même hors ligne, WebView a besoin de cette permission pour
-      ouvrir son serveur local https://localhost). Lucide n'effectue aucune
-      requête réseau et n'envoie aucune donnée à un serveur distant.
+      ouvrir son serveur local https://localhost). Les données du journal de
+      rêves ne quittent jamais l'appareil : la seule requête réseau de l'app est
+      la vérification manuelle des mises à jour (Réglages > Mises à jour), qui
+      contacte uniquement l'API publique de GitHub.
     -->
     <uses-permission android:name="android.permission.INTERNET" />
 
     <!-- Nécessaire pour l'enregistrement des mémos vocaux (capacitor-voice-recorder). -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
+    <!--
+      Nécessaire pour proposer l'installation d'un APK téléchargé depuis les
+      releases GitHub (mise à jour manuelle, l'app n'étant pas distribuée via
+      le Play Store). Android affichera un écran de confirmation système avant
+      toute installation.
+    -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 </manifest>

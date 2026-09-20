@@ -42,7 +42,7 @@ export function DreamCard({ dream, emotionsById, tagsById, selectable, selected,
         </span>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           {dream.audioNotes.length > 0 && <Icon name="mic" size={16} />}
-          {dream.dreamRating !== null && <span className="badge badge-rating">{dream.dreamRating}/10</span>}
+          {dream.moodRating !== null && <span className="badge badge-rating">{dream.moodRating}/10</span>}
         </div>
       </div>
       <p className="dream-card-excerpt">

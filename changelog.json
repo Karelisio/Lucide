@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.2.0",
+    "date": "2026-09-20",
+    "notes": [
+      "La note du rêve /10 devient deux curseurs distincts : « Ressenti » (cauchemar ↔ très agréable) et « Réalisme » (complètement absurde ↔ aurait pu être réel). Un rêve très réaliste mais cauchemardesque n'a plus besoin de tenir sur une seule échelle.",
+      "Statistiques mises à jour en conséquence (ressenti et réalisme suivis séparément dans le temps, corrélation sommeil ↔ ressenti)."
+    ]
+  },
+  {
     "version": "1.1.2",
     "date": "2026-09-20",
     "notes": [

@@ -60,7 +60,12 @@ export function DreamDetailPage() {
       </div>
 
       <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
-        {dream.dreamRating !== null && <span className="badge badge-rating">Note : {dream.dreamRating}/10</span>}
+        {dream.moodRating !== null && (
+          <span className="badge badge-rating">Ressenti : {dream.moodRating}/10</span>
+        )}
+        {dream.realismRating !== null && (
+          <span className="badge badge-rating">Réalisme : {dream.realismRating}/10</span>
+        )}
         {dream.sleepQuality !== null && (
           <span className="badge">
             <Icon name="bed" size={14} /> Sommeil : {dream.sleepQuality}/5

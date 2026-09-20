@@ -32,7 +32,8 @@ export interface Dream {
   characters: string[];
   emotionIds: string[];
   tagIds: string[];
-  dreamRating: number | null; // note /10
+  moodRating: number | null; // ressenti /10 : 0 = cauchemar, 10 = très agréable
+  realismRating: number | null; // réalisme /10 : 0 = absurde, 10 = aurait pu être réel
   sleepQuality: number | null; // 1-5 étoiles, peut exister sans rêve
   audioNotes: AudioNote[];
 }
@@ -44,7 +45,8 @@ export interface DreamFormValues {
   characters: string[];
   emotionIds: string[];
   tagIds: string[];
-  dreamRating: number | null;
+  moodRating: number | null;
+  realismRating: number | null;
   sleepQuality: number | null;
 }
 

@@ -4,7 +4,8 @@ export interface TimelinePoint {
   label: string;
   date: string;
   sleepQuality: number | null;
-  dreamRating: number | null;
+  moodRating: number | null;
+  realismRating: number | null;
 }
 
 function daysBack(n: number): string[] {
@@ -44,7 +45,8 @@ export function buildTimeline(dreams: Dream[], range: StatsRange): TimelinePoint
         date: key,
         label,
         sleepQuality: average(entries.map((d) => d.sleepQuality).filter((v): v is number => v !== null)),
-        dreamRating: average(entries.map((d) => d.dreamRating).filter((v): v is number => v !== null)),
+        moodRating: average(entries.map((d) => d.moodRating).filter((v): v is number => v !== null)),
+        realismRating: average(entries.map((d) => d.realismRating).filter((v): v is number => v !== null)),
       };
     });
   }
@@ -57,7 +59,8 @@ export function buildTimeline(dreams: Dream[], range: StatsRange): TimelinePoint
       date,
       label: fmt.format(new Date(`${date}T00:00:00`)),
       sleepQuality: average(entries.map((d) => d.sleepQuality).filter((v): v is number => v !== null)),
-      dreamRating: average(entries.map((d) => d.dreamRating).filter((v): v is number => v !== null)),
+      moodRating: average(entries.map((d) => d.moodRating).filter((v): v is number => v !== null)),
+      realismRating: average(entries.map((d) => d.realismRating).filter((v): v is number => v !== null)),
     };
   });
 }
@@ -111,8 +114,8 @@ export function computeStreak(dreams: Dream[]): number {
 
 export function pearsonCorrelation(dreams: Dream[]): number | null {
   const pairs = dreams
-    .filter((d) => d.sleepQuality !== null && d.dreamRating !== null)
-    .map((d) => [d.sleepQuality as number, d.dreamRating as number]);
+    .filter((d) => d.sleepQuality !== null && d.moodRating !== null)
+    .map((d) => [d.sleepQuality as number, d.moodRating as number]);
   if (pairs.length < 3) return null;
   const n = pairs.length;
   const sumX = pairs.reduce((a, [x]) => a + x, 0);

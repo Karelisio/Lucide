@@ -20,6 +20,8 @@ CREATE TABLE IF NOT EXISTS dreams (
   locations TEXT NOT NULL DEFAULT '[]',
   characters TEXT NOT NULL DEFAULT '[]',
   dream_rating INTEGER,
+  dream_mood INTEGER,
+  dream_realism INTEGER,
   sleep_quality INTEGER
 );
 
@@ -93,6 +95,23 @@ function cryptoId(): string {
   return crypto.randomUUID();
 }
 
+/**
+ * `CREATE TABLE IF NOT EXISTS` n'ajoute aucune colonne à une table déjà créée par une
+ * version antérieure de l'app : on complète ici le schéma des installations existantes.
+ */
+async function ensureColumn(db: SQLiteDBConnection, table: string, column: string, ddl: string) {
+  const res = await db.query(`PRAGMA table_info(${table});`);
+  const exists = (res.values ?? []).some((r) => r.name === column);
+  if (!exists) {
+    await db.execute(`ALTER TABLE ${table} ADD COLUMN ${ddl};`);
+  }
+}
+
+async function migrateSchema(db: SQLiteDBConnection) {
+  await ensureColumn(db, "dreams", "dream_mood", "dream_mood INTEGER");
+  await ensureColumn(db, "dreams", "dream_realism", "dream_realism INTEGER");
+}
+
 async function openConnection(): Promise<SQLiteDBConnection> {
   if (isWebPlatform) {
     await customElements.whenDefined("jeep-sqlite");
@@ -110,6 +129,7 @@ async function openConnection(): Promise<SQLiteDBConnection> {
   }
   await db.open();
   await db.execute(SCHEMA_STATEMENTS);
+  await migrateSchema(db);
   await seedDefaults(db);
   if (isWebPlatform) {
     await sqlite.saveToStore(DB_NAME);

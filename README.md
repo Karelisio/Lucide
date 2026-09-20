@@ -8,15 +8,18 @@ mises à jour (voir plus bas), qui contacte l'API publique de GitHub.
 ## Fonctionnalités
 
 - Saisie rapide d'un rêve au réveil : texte libre, mémo vocal, lieux, personnages,
-  émotions (liste éditable), tags libres, note du rêve /10.
+  émotions (liste éditable), tags libres, ressenti du rêve /10 (cauchemar ↔
+  agréable) et réalisme du rêve /10 (absurde ↔ aurait pu être réel), notés
+  séparément.
 - Qualité du sommeil (1 à 5 étoiles), même les nuits sans rêve noté.
 - Recherche plein texte (avec recherches récentes) et filtres par tags /
   émotions (triés par fréquence d'usage) ; vue liste ou calendrier.
 - Sélection multiple dans la liste : suppression et ajout de tag groupés.
   Glisser une entrée pour la supprimer, avec annulation temporaire.
-- Statistiques : évolution de la qualité du sommeil et de la note des rêves,
-  fréquence des émotions et des tags, signes de rêve récurrents (déclencheurs
-  potentiels de rêve lucide), corrélation sommeil ↔ rêves.
+- Statistiques : évolution de la qualité du sommeil, du ressenti et du
+  réalisme des rêves, fréquence des émotions et des tags, signes de rêve
+  récurrents (déclencheurs potentiels de rêve lucide), corrélation sommeil ↔
+  ressenti.
 - Streak de nuits consécutives journalisées.
 - Thème Material Design 3 : Système / Clair / Sombre / Noir OLED, dégradé de
   fond doux, et couleurs dynamiques du fond d'écran (Material You, Android 12+).

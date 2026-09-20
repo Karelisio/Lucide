@@ -26,12 +26,33 @@ const RANGES: Array<{ value: StatsRange; label: string }> = [
 
 function useChartColors(theme: "dark" | "light" | "oled") {
   if (theme === "light") {
-    return { primary: "#6B4CE0", tertiary: "#7C5265", grid: "#E4DFEB", text: "#48454E", surface: "#F0EBF6" };
+    return {
+      primary: "#6B4CE0",
+      secondary: "#5D5883",
+      tertiary: "#7C5265",
+      grid: "#E4DFEB",
+      text: "#48454E",
+      surface: "#F0EBF6",
+    };
   }
   if (theme === "oled") {
-    return { primary: "#C9B6FF", tertiary: "#EEB8CE", grid: "#2A2738", text: "#CAC4D6", surface: "#0A0910" };
+    return {
+      primary: "#C9B6FF",
+      secondary: "#C9C2DD",
+      tertiary: "#EEB8CE",
+      grid: "#2A2738",
+      text: "#CAC4D6",
+      surface: "#0A0910",
+    };
   }
-  return { primary: "#C9B6FF", tertiary: "#EEB8CE", grid: "#333047", text: "#CAC4D6", surface: "#1D1B31" };
+  return {
+    primary: "#C9B6FF",
+    secondary: "#C9C2DD",
+    tertiary: "#EEB8CE",
+    grid: "#333047",
+    text: "#CAC4D6",
+    surface: "#1D1B31",
+  };
 }
 
 export function StatsPage() {
@@ -79,8 +100,8 @@ export function StatsPage() {
   const scatterData = useMemo(
     () =>
       dreams
-        .filter((d) => d.sleepQuality !== null && d.dreamRating !== null)
-        .map((d) => ({ sleepQuality: d.sleepQuality, dreamRating: d.dreamRating })),
+        .filter((d) => d.sleepQuality !== null && d.moodRating !== null)
+        .map((d) => ({ sleepQuality: d.sleepQuality, moodRating: d.moodRating })),
     [dreams],
   );
 
@@ -143,23 +164,44 @@ export function StatsPage() {
       </div>
 
       <div className="stat-card">
-        <h3>Note des rêves</h3>
+        <h3>Ressenti &amp; réalisme des rêves</h3>
         <ResponsiveContainer width="100%" height={200}>
           <LineChart data={timeline} margin={{ left: -20, right: 8 }}>
             <CartesianGrid stroke={colors.grid} strokeDasharray="3 3" vertical={false} />
             <XAxis dataKey="label" stroke={colors.text} tick={{ fontSize: 11 }} />
             <YAxis domain={[0, 10]} stroke={colors.text} tick={{ fontSize: 11 }} width={30} />
-            <Tooltip contentStyle={tooltipStyle} formatter={(v) => [`${v}/10`, "Note"] as [string, string]} />
+            <Tooltip
+              contentStyle={tooltipStyle}
+              formatter={(v, name) => [`${v}/10`, name === "moodRating" ? "Ressenti" : "Réalisme"] as [string, string]}
+            />
             <Line
               type="monotone"
-              dataKey="dreamRating"
+              dataKey="moodRating"
               stroke={colors.tertiary}
               strokeWidth={2}
               dot={{ r: 3, fill: colors.tertiary }}
               connectNulls
             />
+            <Line
+              type="monotone"
+              dataKey="realismRating"
+              stroke={colors.secondary}
+              strokeWidth={2}
+              dot={{ r: 3, fill: colors.secondary }}
+              connectNulls
+            />
           </LineChart>
         </ResponsiveContainer>
+        <div style={{ display: "flex", gap: 16, marginTop: 8, fontSize: 12, color: "var(--md-sys-color-on-surface-variant)" }}>
+          <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ width: 10, height: 10, borderRadius: "50%", background: colors.tertiary }} />
+            Ressenti
+          </span>
+          <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ width: 10, height: 10, borderRadius: "50%", background: colors.secondary }} />
+            Réalisme
+          </span>
+        </div>
       </div>
 
       {emotionFreq.length > 0 && (
@@ -213,7 +255,7 @@ export function StatsPage() {
       )}
 
       <div className="stat-card">
-        <h3>Sommeil vs. note des rêves</h3>
+        <h3>Sommeil vs. ressenti des rêves</h3>
         {scatterData.length >= 3 ? (
           <>
             <ResponsiveContainer width="100%" height={220}>
@@ -230,8 +272,8 @@ export function StatsPage() {
                 />
                 <YAxis
                   type="number"
-                  dataKey="dreamRating"
-                  name="Note"
+                  dataKey="moodRating"
+                  name="Ressenti"
                   domain={[0, 10]}
                   stroke={colors.text}
                   tick={{ fontSize: 11 }}
@@ -250,12 +292,13 @@ export function StatsPage() {
                       : Math.abs(correlation) < 0.5
                         ? "lien modéré"
                         : "lien marqué"
-                  } entre sommeil et note du rêve.`}
+                  } entre sommeil et ressenti du rêve.`}
             </p>
           </>
         ) : (
           <p style={{ fontSize: 13, color: "var(--md-sys-color-on-surface-variant)" }}>
-            Note à la fois la qualité du sommeil et la note du rêve sur plusieurs entrées pour voir apparaître la corrélation.
+            Note à la fois la qualité du sommeil et le ressenti du rêve sur plusieurs entrées pour voir apparaître la
+            corrélation.
           </p>
         )}
       </div>

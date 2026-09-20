@@ -1,7 +1,7 @@
 {
   "name": "lucide",
   "private": true,
-  "version": "1.1.2",
+  "version": "1.2.0",
   "type": "module",
   "scripts": {
     "predev": "node scripts/copy-sqlite-wasm.mjs",

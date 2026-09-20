@@ -63,7 +63,8 @@ async function rowToDream(row: Record<string, unknown>): Promise<Dream> {
     characters: JSON.parse((row.characters as string) ?? "[]"),
     emotionIds,
     tagIds,
-    dreamRating: row.dream_rating === null || row.dream_rating === undefined ? null : Number(row.dream_rating),
+    moodRating: row.dream_mood === null || row.dream_mood === undefined ? null : Number(row.dream_mood),
+    realismRating: row.dream_realism === null || row.dream_realism === undefined ? null : Number(row.dream_realism),
     sleepQuality: row.sleep_quality === null || row.sleep_quality === undefined ? null : Number(row.sleep_quality),
     audioNotes,
   };
@@ -114,7 +115,8 @@ export async function getOrCreateNightPlaceholder(nightDate: string): Promise<Dr
     characters: [],
     emotionIds: [],
     tagIds: [],
-    dreamRating: null,
+    moodRating: null,
+    realismRating: null,
     sleepQuality: null,
   });
 }
@@ -143,8 +145,8 @@ export async function createDream(values: DreamFormValues): Promise<Dream> {
   const id = newId();
   const now = nowIso();
   await db.run(
-    `INSERT INTO dreams (id, night_date, created_at, updated_at, text, locations, characters, dream_rating, sleep_quality)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+    `INSERT INTO dreams (id, night_date, created_at, updated_at, text, locations, characters, dream_mood, dream_realism, sleep_quality)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
     [
       id,
       values.nightDate,
@@ -153,7 +155,8 @@ export async function createDream(values: DreamFormValues): Promise<Dream> {
       values.text,
       JSON.stringify(values.locations),
       JSON.stringify(values.characters),
-      values.dreamRating,
+      values.moodRating,
+      values.realismRating,
       values.sleepQuality,
     ],
   );
@@ -165,7 +168,7 @@ export async function createDream(values: DreamFormValues): Promise<Dream> {
 export async function updateDream(id: string, values: DreamFormValues): Promise<Dream> {
   const db = await getDatabase();
   await db.run(
-    `UPDATE dreams SET night_date = ?, updated_at = ?, text = ?, locations = ?, characters = ?, dream_rating = ?, sleep_quality = ?
+    `UPDATE dreams SET night_date = ?, updated_at = ?, text = ?, locations = ?, characters = ?, dream_mood = ?, dream_realism = ?, sleep_quality = ?
      WHERE id = ?;`,
     [
       values.nightDate,
@@ -173,7 +176,8 @@ export async function updateDream(id: string, values: DreamFormValues): Promise<
       values.text,
       JSON.stringify(values.locations),
       JSON.stringify(values.characters),
-      values.dreamRating,
+      values.moodRating,
+      values.realismRating,
       values.sleepQuality,
       id,
     ],

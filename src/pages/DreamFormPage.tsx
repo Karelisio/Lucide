@@ -31,7 +31,8 @@ function emptyForm(nightDate?: string): DreamFormValues {
     characters: [],
     emotionIds: [],
     tagIds: [],
-    dreamRating: null,
+    moodRating: null,
+    realismRating: null,
     sleepQuality: null,
   };
 }
@@ -78,7 +79,8 @@ export function DreamFormPage() {
           characters: dream.characters,
           emotionIds: dream.emotionIds,
           tagIds: dream.tagIds,
-          dreamRating: dream.dreamRating,
+          moodRating: dream.moodRating,
+          realismRating: dream.realismRating,
           sleepQuality: dream.sleepQuality,
         });
         setAudioNotes(dream.audioNotes);
@@ -204,8 +206,21 @@ export function DreamFormPage() {
       <p className="section-title">Tags</p>
       <TagPicker allTags={suggestedTags} selectedIds={form.tagIds} onToggle={toggleTag} onCreate={addTag} />
 
-      <p className="section-title">Note du rêve</p>
-      <RatingSlider value={form.dreamRating} onChange={(v) => update("dreamRating", v)} />
+      <p className="section-title">Ressenti du rêve</p>
+      <RatingSlider
+        value={form.moodRating}
+        onChange={(v) => update("moodRating", v)}
+        lowHint="Cauchemar"
+        highHint="Très agréable"
+      />
+
+      <p className="section-title">Réalisme du rêve</p>
+      <RatingSlider
+        value={form.realismRating}
+        onChange={(v) => update("realismRating", v)}
+        lowHint="Complètement absurde"
+        highHint="Aurait pu être réel"
+      />
 
       <p className="section-title">Qualité du sommeil</p>
       <StarRating value={form.sleepQuality} onChange={(v) => update("sleepQuality", v)} />

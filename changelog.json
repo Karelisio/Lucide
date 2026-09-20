@@ -1,5 +1,12 @@
 [
   {
+    "version": "1.1.2",
+    "date": "2026-09-20",
+    "notes": [
+      "Correction visuelle : le bouton « Annuler » du snackbar de suppression et « Effacer la note » s'affichaient sans le style Material (bordure/police par défaut du navigateur)."
+    ]
+  },
+  {
     "version": "1.1.1",
     "date": "2026-09-18",
     "notes": [

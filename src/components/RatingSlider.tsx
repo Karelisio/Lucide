@@ -31,7 +31,7 @@ export function RatingSlider({ value, onChange }: RatingSliderProps) {
       {value !== null && (
         <button
           type="button"
-          className="btn-text"
+          className="btn btn-text"
           style={{ marginTop: 4, padding: 0, height: "auto" }}
           onClick={() => onChange(null)}
         >

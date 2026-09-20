@@ -48,7 +48,7 @@ export function SnackbarProvider({ children }: { children: ReactNode }) {
           {snackbar.actionLabel && (
             <button
               type="button"
-              className="btn-text"
+              className="btn btn-text"
               onClick={() => {
                 if (timerRef.current) window.clearTimeout(timerRef.current);
                 snackbar.onAction?.();

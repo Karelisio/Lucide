@@ -269,8 +269,8 @@ export function DreamsListPage() {
           {activeFilterCount > 0 && (
             <button
               type="button"
-              className="btn-text"
-              style={{ marginTop: 12, padding: 0 }}
+              className="btn btn-text"
+              style={{ marginTop: 12, padding: 0, height: "auto" }}
               onClick={() => {
                 setSelectedTagIds([]);
                 setSelectedEmotionIds([]);

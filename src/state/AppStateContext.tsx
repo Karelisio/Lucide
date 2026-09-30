@@ -14,6 +14,7 @@ import {
 } from "../db/dreamRepository";
 import DynamicColor, { type DynamicColorPalette } from "../native/dynamicColor";
 import { purgeOrphanAudioFiles } from "../audio/audioRecorder";
+import { finalizePendingDeletions } from "../db/pendingDeletions";
 import { restoreMorningReminder } from "../utils/reminder";
 
 const THEME_KEY = "theme_mode";
@@ -79,8 +80,9 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     (async () => {
       try {
         await getDatabase();
-        // Ménage des mémos audio abandonnés, en tâche de fond : ne retarde pas l'ouverture.
-        purgeOrphanAudioFiles();
+        // Ménage en tâche de fond, sans retarder l'ouverture : suppressions interrompues (app tuée
+        // pendant le délai d'annulation), puis mémos audio abandonnés.
+        finalizePendingDeletions().then(purgeOrphanAudioFiles);
         // Rappel matinal perdu après un arrêt forcé de l'app : reprogrammé, en tâche de fond aussi.
         restoreMorningReminder();
         const storedTheme = await getSetting(THEME_KEY);

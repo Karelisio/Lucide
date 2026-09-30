@@ -73,7 +73,7 @@ async function rowToDream(row: Record<string, unknown>): Promise<Dream> {
 
 export async function listDreams(filter: DreamFilter = {}): Promise<Dream[]> {
   const db = await getDatabase();
-  const res = await db.query("SELECT * FROM dreams ORDER BY night_date DESC, created_at DESC;");
+  const res = await db.query("SELECT * FROM dreams WHERE deleted_at IS NULL ORDER BY night_date DESC, created_at DESC;");
   let dreams = await Promise.all((res.values ?? []).map(rowToDream));
 
   if (filter.query && filter.query.trim()) {
@@ -103,7 +103,7 @@ export async function listDreams(filter: DreamFilter = {}): Promise<Dream[]> {
 export async function findNightEntry(nightDate: string): Promise<Dream | null> {
   const db = await getDatabase();
   const res = await db.query(
-    "SELECT id FROM dreams WHERE night_date = ? ORDER BY sleep_quality IS NULL, created_at ASC LIMIT 1;",
+    "SELECT id FROM dreams WHERE night_date = ? AND deleted_at IS NULL ORDER BY sleep_quality IS NULL, created_at ASC LIMIT 1;",
     [nightDate],
   );
   const existingId = res.values?.[0]?.id as string | undefined;
@@ -133,7 +133,7 @@ export async function getOrCreateNightPlaceholder(nightDate: string): Promise<Dr
 
 export async function getDream(id: string): Promise<Dream | null> {
   const db = await getDatabase();
-  const res = await db.query("SELECT * FROM dreams WHERE id = ?;", [id]);
+  const res = await db.query("SELECT * FROM dreams WHERE id = ? AND deleted_at IS NULL;", [id]);
   const row = res.values?.[0];
   if (!row) return null;
   return rowToDream(row);
@@ -256,6 +256,54 @@ export async function deleteDream(id: string): Promise<void> {
   const db = await getDatabase();
   await db.run("DELETE FROM dreams WHERE id = ?;", [id]);
   await persist();
+}
+
+/**
+ * Marque (ou démarque) des rêves comme supprimés : masqués partout (listes, fiche, accueil) en
+ * attendant purgeDeletedDreams. Voir db/pendingDeletions.ts.
+ */
+export async function setDreamsDeleted(ids: string[], deleted: boolean): Promise<void> {
+  if (ids.length === 0) return;
+  const db = await getDatabase();
+  const deletedAt = deleted ? nowIso() : null;
+  await db.executeSet(
+    ids.map((id) => ({ statement: "UPDATE dreams SET deleted_at = ? WHERE id = ?;", values: [deletedAt, id] })),
+  );
+  await persist();
+}
+
+function purgeStatements(where: string, values: string[]): capSQLiteSet[] {
+  const doomed = `SELECT id FROM dreams WHERE ${where}`;
+  return [
+    { statement: `DELETE FROM audio_notes WHERE dream_id IN (${doomed});`, values },
+    { statement: `DELETE FROM dream_emotions WHERE dream_id IN (${doomed});`, values },
+    { statement: `DELETE FROM dream_tags WHERE dream_id IN (${doomed});`, values },
+    { statement: `DELETE FROM dreams WHERE ${where};`, values },
+  ];
+}
+
+/**
+ * Supprime pour de bon les rêves marqués (tous, ou seulement ceux de `ids`), en une transaction.
+ * Les lignes liées sont supprimées explicitement plutôt que par ON DELETE CASCADE : sur le web,
+ * jeep-sqlite n'active les clés étrangères qu'après la première sauvegarde, donc pas encore au
+ * démarrage. Renvoie les fichiers audio devenus inutiles, à supprimer par l'appelant.
+ */
+export async function purgeDeletedDreams(ids?: string[]): Promise<string[]> {
+  const db = await getDatabase();
+  const res = await db.query(
+    "SELECT a.dream_id, a.file_path FROM audio_notes a JOIN dreams d ON d.id = a.dream_id WHERE d.deleted_at IS NOT NULL;",
+  );
+  const only = ids ? new Set(ids) : null;
+  const filePaths = (res.values ?? [])
+    .filter((r) => !only || only.has(r.dream_id as string))
+    .map((r) => r.file_path as string);
+  const set = ids
+    ? ids.flatMap((id) => purgeStatements("id = ? AND deleted_at IS NOT NULL", [id]))
+    : purgeStatements("deleted_at IS NOT NULL", []);
+  if (set.length === 0) return [];
+  await db.executeSet(set);
+  await persist();
+  return filePaths;
 }
 
 export async function updateSleepQualityOnly(dreamId: string, sleepQuality: number | null): Promise<void> {

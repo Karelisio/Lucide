@@ -22,7 +22,8 @@ CREATE TABLE IF NOT EXISTS dreams (
   dream_rating INTEGER,
   dream_mood INTEGER,
   dream_realism INTEGER,
-  sleep_quality INTEGER
+  sleep_quality INTEGER,
+  deleted_at TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_dreams_night_date ON dreams(night_date);
@@ -144,6 +145,8 @@ INSERT OR REPLACE INTO settings (key, value) VALUES ('${RATING_TO_MOOD_MIGRATION
 async function migrateSchema(db: SQLiteDBConnection) {
   await ensureColumn(db, "dreams", "dream_mood", "dream_mood INTEGER");
   await ensureColumn(db, "dreams", "dream_realism", "dream_realism INTEGER");
+  // Suppression en attente (annulable quelques secondes), voir db/pendingDeletions.ts.
+  await ensureColumn(db, "dreams", "deleted_at", "deleted_at TEXT");
   await migrateRatingToMood(db);
 }
 

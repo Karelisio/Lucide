@@ -78,17 +78,30 @@ const DEFAULT_EMOTIONS: Array<{ label: string; emoji: string }> = [
   { label: "Émerveillement", emoji: "🤩" },
 ];
 
+const DEFAULT_EMOTIONS_SEEDED_KEY = "default_emotions_seeded_v1";
+
+/**
+ * Émotions par défaut insérées une seule fois (drapeau dans `settings`) : avant, elles revenaient
+ * à chaque lancement dès que l'utilisateur les avait toutes supprimées. Installation existante
+ * (émotions déjà là) : seul le drapeau est posé.
+ */
 async function seedDefaults(db: SQLiteDBConnection) {
+  const flag = await db.query("SELECT value FROM settings WHERE key = ?;", [DEFAULT_EMOTIONS_SEEDED_KEY]);
+  if (flag.values?.[0]?.value) return;
   const countRes = await db.query("SELECT COUNT(*) as n FROM emotions;");
   const n = countRes.values?.[0]?.n ?? 0;
-  if (n === 0) {
-    for (const e of DEFAULT_EMOTIONS) {
-      await db.run(
-        "INSERT INTO emotions (id, label, emoji, is_default) VALUES (?, ?, ?, 1);",
-        [cryptoId(), e.label, e.emoji],
-      );
-    }
-  }
+  const inserts =
+    n === 0
+      ? DEFAULT_EMOTIONS.map((e) => ({
+          statement: "INSERT INTO emotions (id, label, emoji, is_default) VALUES (?, ?, ?, 1);",
+          values: [cryptoId(), e.label, e.emoji],
+        }))
+      : [];
+  // Émotions et drapeau dans une même transaction : jamais l'un sans l'autre.
+  await db.executeSet([
+    ...inserts,
+    { statement: "INSERT OR REPLACE INTO settings (key, value) VALUES (?, '1');", values: [DEFAULT_EMOTIONS_SEEDED_KEY] },
+  ]);
 }
 
 function cryptoId(): string {

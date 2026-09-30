@@ -49,6 +49,7 @@ npm install
 npm run dev       # serveur de dev web (http://localhost:5173)
 npm run build     # build de production dans dist/
 npm run lint      # oxlint
+npm test          # tests unitaires (vitest, fuseau Europe/Paris : voir vitest.config.ts)
 ```
 
 > `npm run dev` / `npm run build` copient automatiquement le moteur SQLite/WASM
@@ -124,7 +125,8 @@ en local, créez ce fichier (voir ci-dessous) sans le commiter.
 
 Le workflow [`.github/workflows/android-release.yml`](.github/workflows/android-release.yml)
 build automatiquement l'app à chaque push sur `main` (ou sur un tag `v*`) :
-installe les dépendances, build le frontend, `cap sync`, puis compile et signe
+installe les dépendances, lance le lint et les tests unitaires, build le
+frontend, `cap sync`, puis compile et signe
 l'APK release avec un keystore fourni via les secrets du dépôt. L'APK est
 publié comme artefact de build, et comme release GitHub sur un tag `v*`.
 

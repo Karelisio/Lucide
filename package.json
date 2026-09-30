@@ -9,6 +9,7 @@
     "prebuild": "node scripts/copy-sqlite-wasm.mjs",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
+    "test": "vitest run",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -35,6 +36,7 @@
     "oxlint": "^1.81.0",
     "sql.js": "1.11.0",
     "typescript": "~6.0.2",
-    "vite": "^8.3.0"
+    "vite": "^8.3.0",
+    "vitest": "^5.0.2"
   }
 }

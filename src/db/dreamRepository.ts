@@ -1,5 +1,6 @@
 import type { capSQLiteSet } from "@capacitor-community/sqlite";
 import { getDatabase, persist } from "./database";
+import { containsGlob } from "./search";
 import type { AudioNote, Dream, DreamFormValues, EmotionDef, TagDef } from "../types";
 
 function newId(): string {
@@ -16,27 +17,6 @@ export interface DreamFilter {
   emotionIds?: string[];
 }
 
-async function loadEmotionIds(dreamId: string): Promise<string[]> {
-  const db = await getDatabase();
-  const res = await db.query("SELECT emotion_id FROM dream_emotions WHERE dream_id = ?;", [dreamId]);
-  return (res.values ?? []).map((r) => r.emotion_id as string);
-}
-
-async function loadTagIds(dreamId: string): Promise<string[]> {
-  const db = await getDatabase();
-  const res = await db.query("SELECT tag_id FROM dream_tags WHERE dream_id = ?;", [dreamId]);
-  return (res.values ?? []).map((r) => r.tag_id as string);
-}
-
-async function loadAudioNotes(dreamId: string): Promise<AudioNote[]> {
-  const db = await getDatabase();
-  const res = await db.query(
-    "SELECT * FROM audio_notes WHERE dream_id = ? ORDER BY created_at ASC;",
-    [dreamId],
-  );
-  return (res.values ?? []).map(rowToAudioNote);
-}
-
 function rowToAudioNote(row: Record<string, unknown>): AudioNote {
   return {
     id: row.id as string,
@@ -47,23 +27,22 @@ function rowToAudioNote(row: Record<string, unknown>): AudioNote {
   };
 }
 
-async function rowToDream(row: Record<string, unknown>): Promise<Dream> {
-  const id = row.id as string;
-  const [emotionIds, tagIds, audioNotes] = await Promise.all([
-    loadEmotionIds(id),
-    loadTagIds(id),
-    loadAudioNotes(id),
-  ]);
+/** GROUP_CONCAT → liste (identifiants UUID, jamais de virgule). */
+function splitIds(value: unknown): string[] {
+  return typeof value === "string" && value !== "" ? value.split(",") : [];
+}
+
+function rowToDream(row: Record<string, unknown>, audioNotes: AudioNote[]): Dream {
   return {
-    id,
+    id: row.id as string,
     nightDate: row.night_date as string,
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,
     text: (row.text as string) ?? "",
     locations: JSON.parse((row.locations as string) ?? "[]"),
     characters: JSON.parse((row.characters as string) ?? "[]"),
-    emotionIds,
-    tagIds,
+    emotionIds: splitIds(row.emotion_ids),
+    tagIds: splitIds(row.tag_ids),
     moodRating: row.dream_mood === null || row.dream_mood === undefined ? null : Number(row.dream_mood),
     realismRating: row.dream_realism === null || row.dream_realism === undefined ? null : Number(row.dream_realism),
     sleepQuality: row.sleep_quality === null || row.sleep_quality === undefined ? null : Number(row.sleep_quality),
@@ -71,27 +50,60 @@ async function rowToDream(row: Record<string, unknown>): Promise<Dream> {
   };
 }
 
-export async function listDreams(filter: DreamFilter = {}): Promise<Dream[]> {
+/**
+ * Rêves (non supprimés) qui vérifient `where` (alias d), avec émotions, tags et mémos audio : deux
+ * requêtes quel que soit le nombre de rêves, au lieu de trois par rêve.
+ */
+async function queryDreams(where: string, params: unknown[]): Promise<Dream[]> {
   const db = await getDatabase();
-  const res = await db.query("SELECT * FROM dreams WHERE deleted_at IS NULL ORDER BY night_date DESC, created_at DESC;");
-  let dreams = await Promise.all((res.values ?? []).map(rowToDream));
+  const filter = `d.deleted_at IS NULL AND ${where}`;
+  const [dreamRows, audioRows] = await Promise.all([
+    db.query(
+      `SELECT d.*,
+         (SELECT GROUP_CONCAT(emotion_id) FROM dream_emotions WHERE dream_id = d.id) AS emotion_ids,
+         (SELECT GROUP_CONCAT(tag_id) FROM dream_tags WHERE dream_id = d.id) AS tag_ids
+       FROM dreams d WHERE ${filter}
+       ORDER BY d.night_date DESC, d.created_at DESC;`,
+      params,
+    ),
+    db.query(
+      `SELECT * FROM audio_notes WHERE dream_id IN (SELECT d.id FROM dreams d WHERE ${filter}) ORDER BY created_at ASC;`,
+      params,
+    ),
+  ]);
+  const audioByDream = new Map<string, AudioNote[]>();
+  for (const note of (audioRows.values ?? []).map(rowToAudioNote)) {
+    audioByDream.set(note.dreamId, [...(audioByDream.get(note.dreamId) ?? []), note]);
+  }
+  return (dreamRows.values ?? []).map((row) => rowToDream(row, audioByDream.get(row.id as string) ?? []));
+}
 
-  if (filter.query && filter.query.trim()) {
-    const q = filter.query.trim().toLowerCase();
-    dreams = dreams.filter(
-      (d) =>
-        d.text.toLowerCase().includes(q) ||
-        d.locations.some((l) => l.toLowerCase().includes(q)) ||
-        d.characters.some((c) => c.toLowerCase().includes(q)),
+/**
+ * Recherche et filtres en SQL (appelé à chaque frappe dans la liste) : texte, lieux ou personnages
+ * contenant la recherche (containsGlob), et tous les tags / toutes les émotions sélectionnés.
+ */
+export async function listDreams(filter: DreamFilter = {}): Promise<Dream[]> {
+  const clauses = ["1"];
+  const params: unknown[] = [];
+  const query = filter.query?.trim();
+  if (query) {
+    const pattern = containsGlob(query);
+    clauses.push("(d.text GLOB ? OR d.locations GLOB ? OR d.characters GLOB ?)");
+    params.push(pattern, pattern, pattern);
+  }
+  const links = [
+    { table: "dream_tags", column: "tag_id", ids: filter.tagIds },
+    { table: "dream_emotions", column: "emotion_id", ids: filter.emotionIds },
+  ];
+  for (const { table, column, ids } of links) {
+    const unique = [...new Set(ids ?? [])];
+    if (unique.length === 0) continue;
+    clauses.push(
+      `d.id IN (SELECT dream_id FROM ${table} WHERE ${column} IN (${unique.map(() => "?").join(", ")}) GROUP BY dream_id HAVING COUNT(*) = ?)`,
     );
+    params.push(...unique, unique.length);
   }
-  if (filter.tagIds && filter.tagIds.length > 0) {
-    dreams = dreams.filter((d) => filter.tagIds!.every((t) => d.tagIds.includes(t)));
-  }
-  if (filter.emotionIds && filter.emotionIds.length > 0) {
-    dreams = dreams.filter((d) => filter.emotionIds!.every((e) => d.emotionIds.includes(e)));
-  }
-  return dreams;
+  return queryDreams(clauses.join(" AND "), params);
 }
 
 /**
@@ -132,11 +144,7 @@ export async function getOrCreateNightPlaceholder(nightDate: string): Promise<Dr
 }
 
 export async function getDream(id: string): Promise<Dream | null> {
-  const db = await getDatabase();
-  const res = await db.query("SELECT * FROM dreams WHERE id = ? AND deleted_at IS NULL;", [id]);
-  const row = res.values?.[0];
-  if (!row) return null;
-  return rowToDream(row);
+  return (await queryDreams("d.id = ?", [id]))[0] ?? null;
 }
 
 /**

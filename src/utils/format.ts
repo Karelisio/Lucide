@@ -7,7 +7,9 @@ export function formatDurationMs(ms: number): string {
 
 export function formatNightLabel(nightDate: string): string {
   const start = new Date(`${nightDate}T00:00:00`);
-  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+  // Lendemain au calendrier, pas +24 h : la nuit du passage à l'heure d'hiver dure 25 h.
+  const end = new Date(start);
+  end.setDate(end.getDate() + 1);
   const fmt = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short" });
   return `Nuit du ${fmt.format(start)} au ${fmt.format(end)}`;
 }

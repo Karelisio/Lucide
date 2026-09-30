@@ -1,4 +1,5 @@
 import type { Dream, StatsRange } from "../types";
+import { defaultNightDateForNow } from "./format";
 
 export interface TimelinePoint {
   label: string;
@@ -8,13 +9,20 @@ export interface TimelinePoint {
   realismRating: number | null;
 }
 
+function localIsoDate(d: Date): string {
+  const copy = new Date(d);
+  copy.setMinutes(copy.getMinutes() - copy.getTimezoneOffset());
+  return copy.toISOString().slice(0, 10);
+}
+
+/** Les n derniers jours, en dates locales (toISOString seul donnerait la date UTC : décalée la nuit). */
 function daysBack(n: number): string[] {
   const out: string[] = [];
   const now = new Date();
   for (let i = n - 1; i >= 0; i--) {
     const d = new Date(now);
     d.setDate(d.getDate() - i);
-    out.push(d.toISOString().slice(0, 10));
+    out.push(localIsoDate(d));
   }
   return out;
 }
@@ -87,20 +95,14 @@ export function computeFrequency(
     .sort((a, b) => b.count - a.count);
 }
 
-function localIsoDate(d: Date): string {
-  const copy = new Date(d);
-  copy.setMinutes(copy.getMinutes() - copy.getTimezoneOffset());
-  return copy.toISOString().slice(0, 10);
-}
-
 /**
- * Nombre de nuits consécutives journalisées jusqu'à aujourd'hui (ou hier si la nuit
- * dernière n'a pas encore été notée — on ne casse pas le streak avant le réveil).
+ * Nombre de nuits consécutives journalisées, en partant de la nuit en cours au sens de la saisie
+ * (defaultNightDateForNow : jusqu'à midi, la nuit qui vient de se terminer). La nuit D ne se note
+ * qu'au réveil, le D+1 : tant qu'elle ne l'est pas, on part de la précédente sans casser le streak.
  */
 export function computeStreak(dreams: Dream[]): number {
   const nights = new Set(dreams.map((d) => d.nightDate));
-  const cursor = new Date();
-  cursor.setHours(0, 0, 0, 0);
+  const cursor = new Date(`${defaultNightDateForNow()}T00:00:00`);
   if (!nights.has(localIsoDate(cursor))) {
     cursor.setDate(cursor.getDate() - 1);
   }

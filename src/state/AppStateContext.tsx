@@ -127,7 +127,9 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       return;
     }
     let cancelled = false;
-    DynamicColor.getColors()
+    // Tons clairs ou sombres selon le thème de l'app (Sombre / Noir OLED ≠ mode du téléphone),
+    // redemandés à chaque changement de thème (dépendance resolvedTheme).
+    DynamicColor.getColors({ dark: resolvedTheme !== "light" })
       .then((palette) => {
         if (cancelled) return;
         (Object.keys(DYNAMIC_COLOR_CSS_MAP) as Array<keyof DynamicColorPalette>).forEach((key) => {

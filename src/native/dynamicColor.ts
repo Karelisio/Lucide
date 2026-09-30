@@ -16,8 +16,12 @@ export interface DynamicColorPalette {
 }
 
 export interface DynamicColorPlugin {
-  /** Rejette si Android < 12 ou si les ressources système sont indisponibles. */
-  getColors(): Promise<DynamicColorPalette>;
+  /**
+   * Palette claire ou sombre selon `dark` (thème effectif de l'app, qui peut différer du mode
+   * sombre du téléphone ; sans `dark`, le mode du système). Rejette si Android < 12 ou si les
+   * ressources système sont indisponibles.
+   */
+  getColors(options?: { dark?: boolean }): Promise<DynamicColorPalette>;
 }
 
 /**

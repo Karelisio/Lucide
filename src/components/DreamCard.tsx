@@ -12,6 +12,20 @@ interface DreamCardProps {
   onToggleSelect?: () => void;
 }
 
+/** Texte affiché à la place du récit quand il n'y en a pas. */
+function missingTextLabel(dream: Dream): string {
+  if (dream.audioNotes.length > 0) return "Mémo vocal, pas encore de récit écrit.";
+  const hasDetails =
+    dream.moodRating !== null ||
+    dream.realismRating !== null ||
+    dream.emotionIds.length > 0 ||
+    dream.tagIds.length > 0 ||
+    dream.locations.length > 0 ||
+    dream.characters.length > 0;
+  if (!hasDetails && dream.sleepQuality !== null) return "Pas de rêve noté — seulement la qualité du sommeil.";
+  return "Pas de récit écrit.";
+}
+
 export function DreamCard({ dream, emotionsById, tagsById, selectable, selected, onToggleSelect }: DreamCardProps) {
   const hasText = dream.text.trim().length > 0;
 
@@ -46,7 +60,7 @@ export function DreamCard({ dream, emotionsById, tagsById, selectable, selected,
         </div>
       </div>
       <p className="dream-card-excerpt">
-        {hasText ? dream.text : "Pas de rêve noté — seulement la qualité du sommeil."}
+        {hasText ? dream.text : missingTextLabel(dream)}
       </p>
       <div className="dream-card-footer">
         {dream.sleepQuality !== null && (

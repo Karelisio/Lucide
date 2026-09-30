@@ -26,7 +26,8 @@ mises à jour (voir plus bas), qui contacte l'API publique de GitHub.
 - Rappel matinal optionnel (notification locale, aucune donnée envoyée) et
   widget d'écran d'accueil pour noter un rêve directement.
 - Export/backup local (JSON + fichiers audio) pour changer de téléphone sans
-  rien perdre.
+  rien perdre — c'est le seul moyen : la sauvegarde automatique d'Android est
+  désactivée (voir *Confidentialité*).
 - Mise à jour intégrée : l'app n'étant pas sur le Play Store, elle peut
   vérifier elle-même (à la demande) si une nouvelle release GitHub existe et
   proposer de télécharger + installer l'APK.
@@ -210,6 +211,12 @@ Côté technique :
 - L'export de sauvegarde (Réglages → Exporter mes données) écrit un dossier
   JSON + audio dans le stockage local de l'app (dossier Documents), à copier
   manuellement lors d'un changement de téléphone.
+- La sauvegarde automatique d'Android est désactivée (`android:allowBackup="false"`
+  + règles d'exclusion `res/xml/data_extraction_rules.xml` et
+  `res/xml/backup_rules.xml`) : ni la base ni les mémos audio ne partent dans la
+  sauvegarde Google Drive du téléphone, ni dans le transfert d'appareil à
+  appareil proposé à la configuration d'un nouveau téléphone. Pour changer de
+  téléphone, passer par l'export ci-dessus.
 - Le rappel matinal est une notification locale programmée sur l'appareil
   (`@capacitor/local-notifications`) : aucun réseau, aucun serveur de push.
 - Les couleurs dynamiques (Réglages → Apparence) lisent uniquement les teintes

@@ -1,7 +1,16 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!--
+      Sauvegarde automatique Android désactivée : sans ça, la base SQLite et les mémos audio
+      partent dans la sauvegarde Google Drive du téléphone. allowBackup="false" coupe la
+      sauvegarde cloud ; les règles XML excluent tout, y compris le transfert d'appareil à
+      appareil (Android 12+, dataExtractionRules) que allowBackup ne couvre pas. Pour changer
+      de téléphone : export depuis Réglages, puis restauration.
+    -->
     <application
-        android:allowBackup="true"
+        android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"

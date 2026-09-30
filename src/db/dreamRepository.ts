@@ -1,3 +1,4 @@
+import type { capSQLiteSet } from "@capacitor-community/sqlite";
 import { getDatabase, persist } from "./database";
 import type { AudioNote, Dream, DreamFormValues, EmotionDef, TagDef } from "../types";
 
@@ -138,60 +139,73 @@ export async function getDream(id: string): Promise<Dream | null> {
   return rowToDream(row);
 }
 
-async function linkEmotionsAndTags(db: Awaited<ReturnType<typeof getDatabase>>, dreamId: string, values: DreamFormValues) {
-  await db.run("DELETE FROM dream_emotions WHERE dream_id = ?;", [dreamId]);
-  for (const emotionId of values.emotionIds) {
-    await db.run("INSERT OR IGNORE INTO dream_emotions (dream_id, emotion_id) VALUES (?, ?);", [dreamId, emotionId]);
-  }
-  await db.run("DELETE FROM dream_tags WHERE dream_id = ?;", [dreamId]);
-  for (const tagId of values.tagIds) {
-    await db.run("INSERT OR IGNORE INTO dream_tags (dream_id, tag_id) VALUES (?, ?);", [dreamId, tagId]);
-  }
+/**
+ * Remplace les émotions et tags d'un rêve. Toujours exécuté dans le même executeSet que l'écriture
+ * du rêve, c'est-à-dire une seule transaction (Android comme web) : une app tuée en plein
+ * enregistrement ne laisse plus un rêve sans ses émotions ou avec des tags à moitié remplacés.
+ */
+function emotionAndTagLinks(dreamId: string, values: DreamFormValues): capSQLiteSet[] {
+  return [
+    { statement: "DELETE FROM dream_emotions WHERE dream_id = ?;", values: [dreamId] },
+    ...values.emotionIds.map((emotionId) => ({
+      statement: "INSERT OR IGNORE INTO dream_emotions (dream_id, emotion_id) VALUES (?, ?);",
+      values: [dreamId, emotionId],
+    })),
+    { statement: "DELETE FROM dream_tags WHERE dream_id = ?;", values: [dreamId] },
+    ...values.tagIds.map((tagId) => ({
+      statement: "INSERT OR IGNORE INTO dream_tags (dream_id, tag_id) VALUES (?, ?);",
+      values: [dreamId, tagId],
+    })),
+  ];
 }
 
 export async function createDream(values: DreamFormValues): Promise<Dream> {
   const db = await getDatabase();
   const id = newId();
   const now = nowIso();
-  await db.run(
-    `INSERT INTO dreams (id, night_date, created_at, updated_at, text, locations, characters, dream_mood, dream_realism, sleep_quality)
+  await db.executeSet([
+    {
+      statement: `INSERT INTO dreams (id, night_date, created_at, updated_at, text, locations, characters, dream_mood, dream_realism, sleep_quality)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
-    [
-      id,
-      values.nightDate,
-      now,
-      now,
-      values.text,
-      JSON.stringify(values.locations),
-      JSON.stringify(values.characters),
-      values.moodRating,
-      values.realismRating,
-      values.sleepQuality,
-    ],
-  );
-  await linkEmotionsAndTags(db, id, values);
+      values: [
+        id,
+        values.nightDate,
+        now,
+        now,
+        values.text,
+        JSON.stringify(values.locations),
+        JSON.stringify(values.characters),
+        values.moodRating,
+        values.realismRating,
+        values.sleepQuality,
+      ],
+    },
+    ...emotionAndTagLinks(id, values),
+  ]);
   await persist();
   return (await getDream(id))!;
 }
 
 export async function updateDream(id: string, values: DreamFormValues): Promise<Dream> {
   const db = await getDatabase();
-  await db.run(
-    `UPDATE dreams SET night_date = ?, updated_at = ?, text = ?, locations = ?, characters = ?, dream_mood = ?, dream_realism = ?, sleep_quality = ?
+  await db.executeSet([
+    {
+      statement: `UPDATE dreams SET night_date = ?, updated_at = ?, text = ?, locations = ?, characters = ?, dream_mood = ?, dream_realism = ?, sleep_quality = ?
      WHERE id = ?;`,
-    [
-      values.nightDate,
-      nowIso(),
-      values.text,
-      JSON.stringify(values.locations),
-      JSON.stringify(values.characters),
-      values.moodRating,
-      values.realismRating,
-      values.sleepQuality,
-      id,
-    ],
-  );
-  await linkEmotionsAndTags(db, id, values);
+      values: [
+        values.nightDate,
+        nowIso(),
+        values.text,
+        JSON.stringify(values.locations),
+        JSON.stringify(values.characters),
+        values.moodRating,
+        values.realismRating,
+        values.sleepQuality,
+        id,
+      ],
+    },
+    ...emotionAndTagLinks(id, values),
+  ]);
   await persist();
   return (await getDream(id))!;
 }
@@ -262,10 +276,14 @@ export async function findOrCreateTag(label: string): Promise<TagDef> {
 }
 
 export async function addTagToDreams(dreamIds: string[], tagId: string): Promise<void> {
+  if (dreamIds.length === 0) return;
   const db = await getDatabase();
-  for (const dreamId of dreamIds) {
-    await db.run("INSERT OR IGNORE INTO dream_tags (dream_id, tag_id) VALUES (?, ?);", [dreamId, tagId]);
-  }
+  await db.executeSet(
+    dreamIds.map((dreamId) => ({
+      statement: "INSERT OR IGNORE INTO dream_tags (dream_id, tag_id) VALUES (?, ?);",
+      values: [dreamId, tagId],
+    })),
+  );
   await persist();
 }
 

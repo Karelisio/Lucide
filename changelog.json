@@ -1,5 +1,14 @@
 [
   {
+    "version": "1.2.1",
+    "date": "2026-09-30",
+    "notes": [
+      "Les notes /10 données avant la version 1.2 réapparaissent en tant que « Ressenti » (fiche du rêve, liste, statistiques et export).",
+      "Micro correctement arrêté : quitter l'écran pendant un enregistrement l'annule, passer à une autre app l'arrête et le garde. Fini l'erreur « ALREADY_RECORDING » ; les enregistrements abandonnés ne restent plus sur le téléphone.",
+      "Le téléchargement des mises à jour fonctionne à nouveau (erreur « Failed to fetch »)."
+    ]
+  },
+  {
     "version": "1.2.0",
     "date": "2026-09-20",
     "notes": [

@@ -282,6 +282,13 @@ export async function addAudioNote(dreamId: string, filePath: string, durationMs
   return { id, dreamId, filePath, durationMs, createdAt };
 }
 
+/** Chemins de tous les fichiers audio rattachés à un rêve (ménage des fichiers orphelins). */
+export async function listAudioFilePaths(): Promise<string[]> {
+  const db = await getDatabase();
+  const res = await db.query("SELECT file_path FROM audio_notes;");
+  return (res.values ?? []).map((r) => r.file_path as string);
+}
+
 export async function deleteAudioNoteRow(id: string): Promise<AudioNote | null> {
   const db = await getDatabase();
   const res = await db.query("SELECT * FROM audio_notes WHERE id = ?;", [id]);

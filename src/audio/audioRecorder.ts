@@ -1,9 +1,12 @@
 import { Directory, Filesystem } from "@capacitor/filesystem";
 import { Capacitor } from "@capacitor/core";
-import { VoiceRecorder } from "capacitor-voice-recorder";
+import { RecordingStatus, VoiceRecorder } from "capacitor-voice-recorder";
+import { listAudioFilePaths } from "../db/dreamRepository";
 
 export const AUDIO_SUBDIR = "dream_audio";
 const AUDIO_DIRECTORY = Directory.Data;
+/** Un fichier audio non rattaché à un rêve n'est considéré comme abandonné qu'au-delà de cet âge. */
+const ORPHAN_FILE_MIN_AGE_MS = 24 * 60 * 60 * 1000;
 
 export interface RecordingResult {
   /** Chemin relatif dans Directory.Data, à stocker en base pour retrouver le fichier plus tard. */
@@ -71,6 +74,35 @@ export async function stopRecording(): Promise<RecordingResult> {
   throw new Error("Aucune donnée audio reçue.");
 }
 
+/**
+ * Arrête l'enregistrement en cours et supprime son fichier (enregistrement abandonné). Ne lève
+ * jamais : sans enregistrement actif il n'y a rien à faire, et si l'arrêt échoue le plugin se
+ * remet quand même à zéro (le fichier éventuel sera ramassé par purgeOrphanAudioFiles).
+ */
+export async function discardRecording(): Promise<void> {
+  try {
+    const { filePath } = await stopRecording();
+    await deleteAudioFile(filePath);
+  } catch {
+    // rien en cours, ou enregistrement vide/illisible
+  }
+}
+
+/**
+ * L'enregistrement natif peut survivre à l'écran qui l'a lancé (WebView rechargée, nettoyage
+ * interrompu…) : micro ouvert, fichier qui grossit, et le plugin refuse tout nouvel
+ * enregistrement (ALREADY_RECORDING). Personne ne pouvant plus le terminer, on le jette.
+ */
+export async function discardOrphanRecording(): Promise<void> {
+  try {
+    const { status } = await VoiceRecorder.getCurrentStatus();
+    if (status === RecordingStatus.NONE) return;
+  } catch {
+    return;
+  }
+  await discardRecording();
+}
+
 export async function getPlayableUrl(filePath: string): Promise<string> {
   if (Capacitor.getPlatform() === "web") {
     const { data } = await Filesystem.readFile({ path: filePath, directory: AUDIO_DIRECTORY });
@@ -94,5 +126,28 @@ export async function deleteAudioFile(filePath: string): Promise<void> {
     await Filesystem.deleteFile({ path: filePath, directory: AUDIO_DIRECTORY });
   } catch {
     // fichier déjà absent : rien à faire
+  }
+}
+
+/**
+ * Supprime les fichiers du dossier audio qu'aucun mémo en base ne référence (enregistrements
+ * abandonnés, y compris ceux laissés par les versions précédentes). Seulement au-delà de 24 h :
+ * un fichier récent peut être un enregistrement en cours, pas encore rattaché à son rêve.
+ * Ne lève jamais : c'est du ménage.
+ */
+export async function purgeOrphanAudioFiles(): Promise<void> {
+  try {
+    const { files } = await Filesystem.readdir({ path: AUDIO_SUBDIR, directory: AUDIO_DIRECTORY });
+    const referenced = new Set((await listAudioFilePaths()).map((p) => p.split("/").pop()));
+    const cutoff = Date.now() - ORPHAN_FILE_MIN_AGE_MS;
+    for (const file of files) {
+      // Date de modification inconnue (0) : dans le doute, on garde le fichier.
+      const old = file.mtime > 0 && file.mtime < cutoff;
+      if (file.type === "file" && old && !referenced.has(file.name)) {
+        await deleteAudioFile(`${AUDIO_SUBDIR}/${file.name}`);
+      }
+    }
+  } catch {
+    // dossier pas encore créé (aucun enregistrement) ou illisible : rien à purger
   }
 }

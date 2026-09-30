@@ -107,9 +107,31 @@ async function ensureColumn(db: SQLiteDBConnection, table: string, column: strin
   }
 }
 
+const RATING_TO_MOOD_MIGRATION_KEY = "migration_rating_to_mood_v1";
+
+/**
+ * Jusqu'à la 1.1.x, la note du rêve (/10) était stockée dans `dream_rating`. La 1.2.0 l'a
+ * remplacée par « Ressenti » (`dream_mood`) + « Réalisme » (`dream_realism`) sans recopier les
+ * données : les anciennes notes n'étaient plus affichées nulle part, ni exportées.
+ * L'ancienne note devient le ressenti, qui a pris sa place partout en 1.2.0 (badge de la liste,
+ * corrélation avec le sommeil) : même curseur entier 0–10, même sens (plus haut = meilleur
+ * rêve), donc aucune conversion. Exécutée une seule fois (drapeau dans `settings`) pour ne
+ * jamais réécrire un ressenti que l'utilisateur aurait effacé depuis.
+ */
+async function migrateRatingToMood(db: SQLiteDBConnection) {
+  const res = await db.query("SELECT value FROM settings WHERE key = ?;", [RATING_TO_MOOD_MIGRATION_KEY]);
+  if (res.values?.[0]?.value) return;
+  // Copie et drapeau dans une même transaction : jamais l'un sans l'autre.
+  await db.execute(`
+UPDATE dreams SET dream_mood = dream_rating WHERE dream_mood IS NULL AND dream_rating IS NOT NULL;
+INSERT OR REPLACE INTO settings (key, value) VALUES ('${RATING_TO_MOOD_MIGRATION_KEY}', '1');
+`);
+}
+
 async function migrateSchema(db: SQLiteDBConnection) {
   await ensureColumn(db, "dreams", "dream_mood", "dream_mood INTEGER");
   await ensureColumn(db, "dreams", "dream_realism", "dream_realism INTEGER");
+  await migrateRatingToMood(db);
 }
 
 async function openConnection(): Promise<SQLiteDBConnection> {

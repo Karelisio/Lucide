@@ -13,6 +13,7 @@ import {
   setSetting,
 } from "../db/dreamRepository";
 import DynamicColor, { type DynamicColorPalette } from "../native/dynamicColor";
+import { purgeOrphanAudioFiles } from "../audio/audioRecorder";
 
 const THEME_KEY = "theme_mode";
 const DYNAMIC_COLOR_KEY = "dynamic_color_enabled";
@@ -77,6 +78,8 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     (async () => {
       try {
         await getDatabase();
+        // Ménage des mémos audio abandonnés, en tâche de fond : ne retarde pas l'ouverture.
+        purgeOrphanAudioFiles();
         const storedTheme = await getSetting(THEME_KEY);
         if (!cancelled && (storedTheme === "dark" || storedTheme === "light" || storedTheme === "oled" || storedTheme === "system")) {
           setThemeState(storedTheme);

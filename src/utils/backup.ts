@@ -71,6 +71,20 @@ async function writeBinaryFile(path: string, directory: Directory, bytes: Uint8A
   }
 }
 
+/**
+ * Écrire dans Documents exige la permission de stockage sur Android 10 et moins (déclarée avec
+ * maxSdkVersion="29" dans le manifeste) ; le plugin la considère toujours accordée à partir
+ * d'Android 11, où l'app crée ses propres fichiers dans Documents sans permission.
+ */
+async function ensureDocumentsPermission(): Promise<void> {
+  if ((await Filesystem.checkPermissions()).publicStorage === "granted") return;
+  if ((await Filesystem.requestPermissions()).publicStorage !== "granted") {
+    throw new Error(
+      "accès au stockage refusé. Autorise « Stockage » (ou « Fichiers et contenus multimédias ») pour Lucide dans les paramètres Android, puis réessaie.",
+    );
+  }
+}
+
 function downloadInBrowser(bytes: Uint8Array, fileName: string) {
   const url = URL.createObjectURL(new Blob([bytes as Uint8Array<ArrayBuffer>], { type: "application/zip" }));
   const link = document.createElement("a");
@@ -82,6 +96,8 @@ function downloadInBrowser(bytes: Uint8Array, fileName: string) {
 
 /** Une seule archive .zip (data.json + mémos audio), dans Documents/Lucide_backups. */
 export async function exportBackup(): Promise<BackupResult> {
+  const web = Capacitor.getPlatform() === "web";
+  if (!web) await ensureDocumentsPermission();
   const [dreams, emotions, tags] = await Promise.all([listDreams(), listEmotions(), listTags()]);
 
   const audioFiles: BackupAudioFile[] = [];
@@ -115,7 +131,7 @@ export async function exportBackup(): Promise<BackupResult> {
   const zip = await buildBackupZip(bundle, audioFiles);
   const counts = { dreamCount: dreams.length, audioCount: audioFiles.length };
 
-  if (Capacitor.getPlatform() === "web") {
+  if (web) {
     const fileName = `lucide_backup_${timestampSlug()}.zip`;
     downloadInBrowser(zip, fileName);
     return { location: fileName, downloaded: true, ...counts };

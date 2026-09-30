@@ -6,11 +6,13 @@
       sauvegarde cloud ; les règles XML excluent tout, y compris le transfert d'appareil à
       appareil (Android 12+, dataExtractionRules) que allowBackup ne couvre pas. Pour changer
       de téléphone : export depuis Réglages, puis restauration.
+      requestLegacyExternalStorage : voir la permission WRITE_EXTERNAL_STORAGE plus bas.
     -->
     <application
         android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
+        android:requestLegacyExternalStorage="true"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
@@ -83,4 +85,14 @@
       toute installation.
     -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
+    <!--
+      Export de sauvegarde dans le dossier Documents du téléphone (Réglages > Exporter mes
+      données). Android 10 et moins exigent ces permissions, demandées au moment de l'export, et
+      Android 10 applique en plus le stockage restreint sauf requestLegacyExternalStorage="true"
+      (voir <application>). Inutiles à partir d'Android 11 : l'app y crée ses propres fichiers
+      sans permission (maxSdkVersion="29" : jamais demandées au-delà).
+    -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
 </manifest>

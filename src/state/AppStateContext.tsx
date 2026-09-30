@@ -14,6 +14,8 @@ import {
 } from "../db/dreamRepository";
 import DynamicColor, { type DynamicColorPalette } from "../native/dynamicColor";
 import { purgeOrphanAudioFiles } from "../audio/audioRecorder";
+import { finalizePendingDeletions } from "../db/pendingDeletions";
+import { restoreMorningReminder } from "../utils/reminder";
 
 const THEME_KEY = "theme_mode";
 const DYNAMIC_COLOR_KEY = "dynamic_color_enabled";
@@ -78,8 +80,11 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     (async () => {
       try {
         await getDatabase();
-        // Ménage des mémos audio abandonnés, en tâche de fond : ne retarde pas l'ouverture.
-        purgeOrphanAudioFiles();
+        // Ménage en tâche de fond, sans retarder l'ouverture : suppressions interrompues (app tuée
+        // pendant le délai d'annulation), puis mémos audio abandonnés.
+        finalizePendingDeletions().then(purgeOrphanAudioFiles);
+        // Rappel matinal perdu après un arrêt forcé de l'app : reprogrammé, en tâche de fond aussi.
+        restoreMorningReminder();
         const storedTheme = await getSetting(THEME_KEY);
         if (!cancelled && (storedTheme === "dark" || storedTheme === "light" || storedTheme === "oled" || storedTheme === "system")) {
           setThemeState(storedTheme);
@@ -127,7 +132,9 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       return;
     }
     let cancelled = false;
-    DynamicColor.getColors()
+    // Tons clairs ou sombres selon le thème de l'app (Sombre / Noir OLED ≠ mode du téléphone),
+    // redemandés à chaque changement de thème (dépendance resolvedTheme).
+    DynamicColor.getColors({ dark: resolvedTheme !== "light" })
       .then((palette) => {
         if (cancelled) return;
         (Object.keys(DYNAMIC_COLOR_CSS_MAP) as Array<keyof DynamicColorPalette>).forEach((key) => {

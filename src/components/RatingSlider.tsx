@@ -6,17 +6,28 @@ interface RatingSliderProps {
 }
 
 export function RatingSlider({ value, onChange, lowHint, highHint }: RatingSliderProps) {
+  const empty = value === null;
   return (
     <div>
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        {/*
+          Sans note : curseur estompé au milieu, pas à 0 (qui se lirait « Cauchemar »). Un tap fixe la
+          note où qu'il tombe : taper la position déjà affichée ne déclenche pas onChange (ce qui rendait
+          0 impossible à choisir d'un seul tap quand le curseur y était), d'où onPointerUp — au doigt,
+          un curseur ne reçoit pas de click.
+        */}
         <input
           type="range"
           min={0}
           max={10}
           step={1}
-          value={value ?? 0}
+          value={value ?? 5}
+          aria-valuetext={empty ? "Non noté" : undefined}
           onChange={(e) => onChange(Number(e.target.value))}
-          style={{ flex: 1, accentColor: "var(--md-sys-color-primary)" }}
+          onPointerUp={(e) => {
+            if (empty) onChange(Number(e.currentTarget.value));
+          }}
+          style={{ flex: 1, accentColor: "var(--md-sys-color-primary)", opacity: empty ? 0.4 : 1 }}
         />
         <span
           style={{

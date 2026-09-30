@@ -4,7 +4,7 @@ import { RecordingStatus, VoiceRecorder } from "capacitor-voice-recorder";
 import { listAudioFilePaths } from "../db/dreamRepository";
 
 export const AUDIO_SUBDIR = "dream_audio";
-const AUDIO_DIRECTORY = Directory.Data;
+export const AUDIO_DIRECTORY = Directory.Data;
 /** Un fichier audio non rattaché à un rêve n'est considéré comme abandonné qu'au-delà de cet âge. */
 const ORPHAN_FILE_MIN_AGE_MS = 24 * 60 * 60 * 1000;
 

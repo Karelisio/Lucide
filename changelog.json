@@ -1,5 +1,22 @@
 [
   {
+    "version": "1.3.0",
+    "date": "2026-09-30",
+    "notes": [
+      "Nouveau : restaurer une sauvegarde (Réglages → Restaurer une sauvegarde). L'export produit maintenant une seule archive .zip (rêves + mémos audio) à copier sur le nouveau téléphone ; les rêves déjà présents ne sont jamais écrasés. L'ancien data.json est aussi accepté (sans l'audio).",
+      "La sauvegarde automatique d'Android (Google Drive, transfert d'un téléphone à l'autre) est désactivée : aucune donnée ne quitte le téléphone. Pour en changer, exporte puis restaure.",
+      "Export : deux exports dans la même minute fonctionnent, et l'export marche aussi sur Android 10 et moins (autorisation de stockage demandée).",
+      "Couleurs du fond d'écran : palette claire ou sombre selon le thème choisi dans Lucide (Sombre, Noir OLED), et non plus selon le téléphone.",
+      "Statistiques et streak : dates justes après minuit, streak qui ne retombe plus à 0 chaque matin avant la saisie, et « Nuit du 25 oct. au 26 oct. » la nuit du changement d'heure.",
+      "Rappel matinal : option pour qu'il sonne à l'heure exacte (autorisation « Alarmes et rappels », Android 12+), et rappel reprogrammé à l'ouverture de l'app s'il avait été perdu.",
+      "Accueil : les étoiles de sommeil affichées sont bien celles enregistrées, et deux taps rapides ne créent plus deux entrées.",
+      "Suppression depuis la liste plus fiable : plus de rêve qui réapparaît en revenant sur la liste, ni de suppression perdue si l'app est fermée juste après.",
+      "Curseurs Ressenti et Réalisme : l'état « non noté » est distinct, et 0 (Cauchemar) se choisit d'un seul tap.",
+      "Les émotions par défaut ne reviennent plus après les avoir toutes supprimées ; texte corrigé pour une entrée avec seulement un mémo vocal.",
+      "Liste et recherche bien plus rapides avec beaucoup de rêves ; un rêve s'enregistre d'un seul bloc (jamais à moitié si l'app est fermée)."
+    ]
+  },
+  {
     "version": "1.2.1",
     "date": "2026-09-30",
     "notes": [

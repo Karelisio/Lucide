@@ -1,12 +1,23 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Capacitor } from "@capacitor/core";
 import { Icon } from "../components/Icon";
 import { useAppState } from "../state/AppStateContext";
-import { exportBackup } from "../utils/backup";
+import { exportBackup, restoreBackup } from "../utils/backup";
+import { describeRestoreReport } from "../utils/backupFormat";
 import { CHANGELOG, CURRENT_VERSION } from "../changelog";
 import { formatShortDate } from "../utils/format";
 import { checkForUpdate, downloadAndInstall, type AvailableUpdate } from "../utils/updateChecker";
-import { cancelMorningReminder, isReminderSupported, scheduleMorningReminder } from "../utils/reminder";
+import {
+  DEFAULT_REMINDER_TIME,
+  REMINDER_ENABLED_KEY,
+  REMINDER_TIME_KEY,
+  cancelMorningReminder,
+  isExactAlarmAllowed,
+  isReminderSupported,
+  openExactAlarmSetting,
+  parseReminderTime,
+  scheduleMorningReminder,
+} from "../utils/reminder";
 import { getSetting, setSetting } from "../db/dreamRepository";
 import type { ThemeMode } from "../types";
 
@@ -30,6 +41,7 @@ export function SettingsPage() {
     setDynamicColorEnabled,
     emotions,
     tags,
+    refreshTaxonomy,
     addEmotion,
     removeEmotion,
     addTag,
@@ -40,6 +52,9 @@ export function SettingsPage() {
   const [newTagLabel, setNewTagLabel] = useState("");
   const [exporting, setExporting] = useState(false);
   const [exportMessage, setExportMessage] = useState<string | null>(null);
+  const [restoring, setRestoring] = useState(false);
+  const [restoreMessage, setRestoreMessage] = useState<string | null>(null);
+  const restoreInputRef = useRef<HTMLInputElement>(null);
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus>("idle");
   const [availableUpdate, setAvailableUpdate] = useState<AvailableUpdate | null>(null);
   const [updateError, setUpdateError] = useState<string | null>(null);
@@ -47,24 +62,26 @@ export function SettingsPage() {
   const canInstall = Capacitor.getPlatform() === "android";
   const reminderSupported = isReminderSupported();
   const [reminderEnabled, setReminderEnabledState] = useState(false);
-  const [reminderTime, setReminderTimeState] = useState("08:00");
+  const [reminderTime, setReminderTimeState] = useState(DEFAULT_REMINDER_TIME);
   const [reminderError, setReminderError] = useState<string | null>(null);
+  // Autorisation « Alarmes et rappels » (null : pas encore connue).
+  const [exactAlarmAllowed, setExactAlarmAllowed] = useState<boolean | null>(null);
 
   useEffect(() => {
     (async () => {
-      const enabled = await getSetting("reminder_enabled");
-      const time = await getSetting("reminder_time");
+      const enabled = await getSetting(REMINDER_ENABLED_KEY);
+      const time = await getSetting(REMINDER_TIME_KEY);
       if (enabled === "1") setReminderEnabledState(true);
       if (time) setReminderTimeState(time);
+      if (reminderSupported) setExactAlarmAllowed(await isExactAlarmAllowed().catch(() => null));
     })();
-  }, []);
+  }, [reminderSupported]);
 
   async function applyReminder(enabled: boolean, time: string): Promise<boolean> {
     setReminderError(null);
     try {
       if (enabled) {
-        const [hour, minute] = time.split(":").map(Number);
-        await scheduleMorningReminder({ hour, minute });
+        await scheduleMorningReminder(parseReminderTime(time));
       } else {
         await cancelMorningReminder();
       }
@@ -80,13 +97,24 @@ export function SettingsPage() {
     const ok = await applyReminder(next, reminderTime);
     if (!ok) return;
     setReminderEnabledState(next);
-    await setSetting("reminder_enabled", next ? "1" : "0");
+    await setSetting(REMINDER_ENABLED_KEY, next ? "1" : "0");
   }
 
   async function handleReminderTimeChange(time: string) {
     setReminderTimeState(time);
-    await setSetting("reminder_time", time);
+    await setSetting(REMINDER_TIME_KEY, time);
     if (reminderEnabled) await applyReminder(true, time);
+  }
+
+  async function handleAllowExactAlarm() {
+    try {
+      const allowed = await openExactAlarmSetting();
+      setExactAlarmAllowed(allowed);
+      // Reprogrammé en alarme exacte maintenant qu'elle est autorisée.
+      if (allowed && reminderEnabled) await applyReminder(true, reminderTime);
+    } catch (e) {
+      setReminderError(e instanceof Error ? e.message : "Impossible d'ouvrir le réglage « Alarmes et rappels ».");
+    }
   }
 
   async function handleAddEmotion() {
@@ -107,13 +135,31 @@ export function SettingsPage() {
     setExportMessage(null);
     try {
       const result = await exportBackup();
+      const counts = `${result.dreamCount} rêve(s), ${result.audioCount} mémo(s) audio`;
       setExportMessage(
-        `Sauvegarde créée : ${result.dreamCount} rêve(s), ${result.audioCount} audio(s) — dossier "${result.folder}" (accessible dans le stockage de l'application, dossier Documents).`,
+        result.downloaded
+          ? `Sauvegarde téléchargée : ${result.location} (${counts}).`
+          : `Sauvegarde créée : ${counts} — fichier « ${result.location} ». Pour changer de téléphone, copie ce fichier sur le nouveau, puis « Restaurer une sauvegarde ».`,
       );
     } catch (e) {
       setExportMessage(e instanceof Error ? `Échec de l'export : ${e.message}` : "Échec de l'export.");
     } finally {
       setExporting(false);
+    }
+  }
+
+  async function handleRestoreFile(file: File | undefined) {
+    if (!file) return;
+    setRestoring(true);
+    setRestoreMessage(null);
+    try {
+      const report = await restoreBackup(file);
+      await refreshTaxonomy();
+      setRestoreMessage(describeRestoreReport(report));
+    } catch (e) {
+      setRestoreMessage(e instanceof Error ? `Échec de la restauration : ${e.message}` : "Échec de la restauration.");
+    } finally {
+      setRestoring(false);
     }
   }
 
@@ -264,15 +310,50 @@ export function SettingsPage() {
       <p className="section-title">Sauvegarde locale</p>
       <div className="card">
         <p style={{ fontSize: 14, marginBottom: 14, color: "var(--md-sys-color-on-surface-variant)" }}>
-          Exporte tes rêves et tes mémos audio dans un dossier local (JSON + fichiers audio), pour ne rien perdre en
-          cas de changement de téléphone. Rien n'est envoyé sur internet.
+          Exporte tes rêves et tes mémos audio dans une archive .zip (dossier Documents/Lucide_backups du téléphone).
+          C'est le seul moyen de ne rien perdre en changeant de téléphone : copie l'archive sur le nouveau, puis
+          restaure-la ici. Rien n'est envoyé sur internet.
         </p>
-        <button type="button" className="btn btn-filled btn-block" onClick={handleExport} disabled={exporting}>
+        <button type="button" className="btn btn-filled btn-block" onClick={handleExport} disabled={exporting || restoring}>
           <Icon name="download" size={18} />
           {exporting ? "Export en cours…" : "Exporter mes données"}
         </button>
         {exportMessage && (
           <p style={{ fontSize: 13, marginTop: 12, color: "var(--md-sys-color-on-surface-variant)" }}>{exportMessage}</p>
+        )}
+        {/*
+          Sélecteur de fichiers du système : sur un nouveau téléphone, l'app ne peut en général pas lire
+          directement un fichier copié dans Documents. application/octet-stream et x-zip-compressed :
+          un .zip venu d'un PC ou d'un cloud n'est pas toujours déclaré application/zip, et le sélecteur
+          grise les fichiers d'un autre type. Le contenu est de toute façon vérifié à la lecture.
+        */}
+        <input
+          ref={restoreInputRef}
+          type="file"
+          accept=".zip,.json,application/zip,application/x-zip-compressed,application/json,application/octet-stream"
+          style={{ display: "none" }}
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            e.target.value = "";
+            handleRestoreFile(file);
+          }}
+        />
+        <button
+          type="button"
+          className="btn btn-tonal btn-block"
+          style={{ marginTop: 12 }}
+          onClick={() => restoreInputRef.current?.click()}
+          disabled={exporting || restoring}
+        >
+          <Icon name="upload" size={18} />
+          {restoring ? "Restauration en cours…" : "Restaurer une sauvegarde"}
+        </button>
+        <p style={{ fontSize: 12, marginTop: 8, color: "var(--md-sys-color-on-surface-variant)" }}>
+          Ajoute les rêves de la sauvegarde (.zip, ou data.json d'une ancienne version, sans l'audio) sans modifier
+          ceux déjà présents.
+        </p>
+        {restoreMessage && (
+          <p style={{ fontSize: 13, marginTop: 12, color: "var(--md-sys-color-on-surface-variant)" }}>{restoreMessage}</p>
         )}
       </div>
 
@@ -299,6 +380,17 @@ export function SettingsPage() {
                 value={reminderTime}
                 onChange={(e) => handleReminderTimeChange(e.target.value)}
               />
+            )}
+            {reminderEnabled && exactAlarmAllowed === false && (
+              <div style={{ marginTop: 14 }}>
+                <p style={{ fontSize: 13, color: "var(--md-sys-color-on-surface-variant)", marginBottom: 10 }}>
+                  Heure approximative : sans l'autorisation « Alarmes et rappels », Android peut décaler le rappel de
+                  plusieurs minutes.
+                </p>
+                <button type="button" className="btn btn-tonal btn-block" onClick={handleAllowExactAlarm}>
+                  Autoriser l'heure exacte
+                </button>
+              </div>
             )}
             {reminderError && (
               <p style={{ fontSize: 13, marginTop: 10, color: "var(--md-sys-color-error)" }}>{reminderError}</p>

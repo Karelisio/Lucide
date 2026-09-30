@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Icon } from "../components/Icon";
 import { DreamCard } from "../components/DreamCard";
@@ -6,8 +6,8 @@ import { SwipeToDelete } from "../components/SwipeToDelete";
 import { CalendarView } from "../components/CalendarView";
 import { useAppState } from "../state/AppStateContext";
 import { useSnackbar } from "../state/SnackbarContext";
-import { addTagToDreams, deleteDream, listDreams } from "../db/dreamRepository";
-import { deleteAudioFile } from "../audio/audioRecorder";
+import { addTagToDreams, listDreams } from "../db/dreamRepository";
+import { UNDO_DELAY_MS, deleteDreamsWithUndo, onDeletionUndone } from "../db/pendingDeletions";
 import { addRecentSearch, getRecentSearches } from "../utils/recentSearches";
 import { computeFrequency } from "../utils/stats";
 import type { Dream } from "../types";
@@ -30,7 +30,8 @@ export function DreamsListPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkTagPickerOpen, setBulkTagPickerOpen] = useState(false);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
-  const pendingDeletesRef = useRef<Map<string, { dream: Dream; timer: number }>>(new Map());
+  // Incrémenté pour recharger la liste (suppression annulée, éventuellement depuis un autre écran).
+  const [reloadKey, setReloadKey] = useState(0);
 
   const emotionsById = useMemo(() => new Map(emotions.map((e) => [e.id, e])), [emotions]);
   const tagsById = useMemo(() => new Map(tags.map((t) => [t.id, t])), [tags]);
@@ -39,55 +40,31 @@ export function DreamsListPage() {
     getRecentSearches().then(setRecentSearches);
   }, []);
 
+  useEffect(() => onDeletionUndone(() => setReloadKey((k) => k + 1)), []);
+
   useEffect(() => {
     setLoading(true);
     const handle = window.setTimeout(async () => {
+      // Les rêves en cours de suppression sont exclus par listDreams (marqués en base).
       const results = await listDreams({ query, tagIds: selectedTagIds, emotionIds: selectedEmotionIds });
-      setDreams(results.filter((d) => !pendingDeletesRef.current.has(d.id)));
+      setDreams(results);
       setLoading(false);
       if (query.trim().length >= 2) {
         addRecentSearch(query).then(setRecentSearches);
       }
     }, 200);
     return () => window.clearTimeout(handle);
-  }, [query, selectedTagIds, selectedEmotionIds]);
+  }, [query, selectedTagIds, selectedEmotionIds, reloadKey]);
 
   const tagsForFilter = useMemo(() => {
     const counts = new Map(computeFrequency(dreams, (d) => d.tagIds, tagsById).map((f) => [f.id, f.count]));
     return [...tags].sort((a, b) => (counts.get(b.id) ?? 0) - (counts.get(a.id) ?? 0) || a.label.localeCompare(b.label));
   }, [tags, dreams, tagsById]);
 
-  const finalizeDelete = useCallback(async (dream: Dream) => {
-    for (const note of dream.audioNotes) {
-      await deleteAudioFile(note.filePath).catch(() => {});
-    }
-    await deleteDream(dream.id);
-  }, []);
-
-  function handleSwipeDelete(dream: Dream, index: number) {
+  function handleSwipeDelete(dream: Dream) {
     setDreams((prev) => prev.filter((d) => d.id !== dream.id));
-    const timer = window.setTimeout(() => {
-      pendingDeletesRef.current.delete(dream.id);
-      finalizeDelete(dream);
-    }, 4000);
-    pendingDeletesRef.current.set(dream.id, { dream, timer });
-    show("Rêve supprimé.", {
-      actionLabel: "Annuler",
-      duration: 4000,
-      onAction: () => {
-        const pending = pendingDeletesRef.current.get(dream.id);
-        if (pending) {
-          window.clearTimeout(pending.timer);
-          pendingDeletesRef.current.delete(dream.id);
-        }
-        setDreams((prev) => {
-          if (prev.some((d) => d.id === dream.id)) return prev;
-          const copy = [...prev];
-          copy.splice(Math.min(index, copy.length), 0, dream);
-          return copy;
-        });
-      },
-    });
+    const pending = deleteDreamsWithUndo([dream.id]);
+    show("Rêve supprimé.", { actionLabel: "Annuler", duration: UNDO_DELAY_MS, onAction: pending.undo });
   }
 
   function toggleSelectionMode() {
@@ -105,33 +82,13 @@ export function DreamsListPage() {
   }
 
   function handleBulkDelete() {
-    const toDelete = dreams.filter((d) => selectedIds.has(d.id));
-    if (toDelete.length === 0) return;
+    const ids = dreams.filter((d) => selectedIds.has(d.id)).map((d) => d.id);
+    if (ids.length === 0) return;
     setDreams((prev) => prev.filter((d) => !selectedIds.has(d.id)));
-    const timer = window.setTimeout(() => {
-      for (const d of toDelete) {
-        pendingDeletesRef.current.delete(d.id);
-        finalizeDelete(d);
-      }
-    }, 4000);
-    for (const d of toDelete) pendingDeletesRef.current.set(d.id, { dream: d, timer });
+    const pending = deleteDreamsWithUndo(ids);
     setSelectionMode(false);
     setSelectedIds(new Set());
-    show(`${toDelete.length} rêve(s) supprimé(s).`, {
-      actionLabel: "Annuler",
-      duration: 4000,
-      onAction: () => {
-        window.clearTimeout(timer);
-        for (const d of toDelete) pendingDeletesRef.current.delete(d.id);
-        setDreams((prev) => {
-          const copy = [...prev, ...toDelete];
-          copy.sort((a, b) =>
-            a.nightDate === b.nightDate ? (a.createdAt < b.createdAt ? 1 : -1) : a.nightDate < b.nightDate ? 1 : -1,
-          );
-          return copy;
-        });
-      },
-    });
+    show(`${ids.length} rêve(s) supprimé(s).`, { actionLabel: "Annuler", duration: UNDO_DELAY_MS, onAction: pending.undo });
   }
 
   async function handleBulkAddTag(tagId: string) {
@@ -140,7 +97,7 @@ export function DreamsListPage() {
     if (ids.length === 0) return;
     await addTagToDreams(ids, tagId);
     const results = await listDreams({ query, tagIds: selectedTagIds, emotionIds: selectedEmotionIds });
-    setDreams(results.filter((d) => !pendingDeletesRef.current.has(d.id)));
+    setDreams(results);
     setSelectionMode(false);
     setSelectedIds(new Set());
     show(`Tag ajouté à ${ids.length} rêve(s).`);
@@ -297,7 +254,7 @@ export function DreamsListPage() {
               <p>Aucun rêve ne correspond à ta recherche.</p>
             </div>
           )}
-          {dreams.map((d, i) =>
+          {dreams.map((d) =>
             selectionMode ? (
               <DreamCard
                 key={d.id}
@@ -309,7 +266,7 @@ export function DreamsListPage() {
                 onToggleSelect={() => toggleSelectDream(d.id)}
               />
             ) : (
-              <SwipeToDelete key={d.id} ariaLabel={`Rêve du ${d.nightDate}`} onDelete={() => handleSwipeDelete(d, i)}>
+              <SwipeToDelete key={d.id} ariaLabel={`Rêve du ${d.nightDate}`} onDelete={() => handleSwipeDelete(d)}>
                 <DreamCard dream={d} emotionsById={emotionsById} tagsById={tagsById} />
               </SwipeToDelete>
             ),

@@ -25,7 +25,9 @@ public class DynamicColorPlugin extends Plugin {
             return;
         }
         try {
-            boolean dark = isDarkMode();
+            // Thème effectif de l'app (Clair / Sombre / Noir OLED / Système), transmis par le JS :
+            // il peut différer du mode sombre du téléphone. Sans paramètre, on suit le système.
+            boolean dark = call.getBoolean("dark", isDarkMode());
             JSObject result = new JSObject();
             result.put("primary", hex(accent(1, dark ? 200 : 600)));
             result.put("onPrimary", hex(accent(1, dark ? 800 : 0)));

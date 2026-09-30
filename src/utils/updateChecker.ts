@@ -79,48 +79,42 @@ export async function checkForUpdate(): Promise<AvailableUpdate | null> {
   return { version, notes, assetName: asset.name, downloadUrl: asset.browser_download_url };
 }
 
-async function fetchWithProgress(url: string, onProgress?: (pct: number) => void): Promise<Blob> {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`Échec du téléchargement (HTTP ${res.status}).`);
-  const total = Number(res.headers.get("content-length") ?? 0);
-  if (!res.body || !total || !onProgress) return res.blob();
-
-  const reader = res.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let received = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    chunks.push(value);
-    received += value.length;
-    onProgress(Math.min(100, Math.round((received / total) * 100)));
-  }
-  return new Blob(chunks as BlobPart[]);
-}
-
-function blobToBase64(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onloadend = () => resolve(((reader.result as string) ?? "").split(",")[1] ?? "");
-    reader.onerror = () => reject(reader.error ?? new Error("Lecture du fichier échouée."));
-    reader.readAsDataURL(blob);
-  });
-}
-
-/** Télécharge l'APK d'une mise à jour disponible puis ouvre l'installateur système Android. */
+/**
+ * Télécharge l'APK d'une mise à jour disponible puis ouvre l'installateur système Android.
+ *
+ * Téléchargement natif (client HTTP d'Android, écriture directe sur le disque) et pas `fetch` :
+ * le lien github.com/.../releases/download/... redirige (302) vers un hôte de stockage qui ne
+ * renvoie aucun en-tête CORS, ce qui fait échouer `fetch` dans la WebView (« Failed to fetch »).
+ */
 export async function downloadAndInstall(update: AvailableUpdate, onProgress?: (pct: number) => void): Promise<void> {
   if (Capacitor.getPlatform() !== "android") {
     throw new Error("L'installation automatique n'est disponible que depuis l'app Android installée.");
   }
 
-  const blob = await fetchWithProgress(update.downloadUrl, onProgress);
-  const base64 = await blobToBase64(blob);
-
   const dir = "update";
-  const path = `${dir}/${update.assetName}`;
+  // Le téléchargement natif ne crée pas lui-même le dossier de destination.
   await Filesystem.mkdir({ path: dir, directory: Directory.Cache, recursive: true }).catch(() => {});
-  await Filesystem.writeFile({ path, directory: Directory.Cache, data: base64 });
 
-  const { uri } = await Filesystem.getUri({ path, directory: Directory.Cache });
-  await ApkInstaller.install({ path: uri.replace(/^file:\/\//, "") });
+  const progressListener = await Filesystem.addListener("progress", ({ bytes, contentLength }) => {
+    if (onProgress && contentLength > 0) onProgress(Math.min(100, Math.round((bytes / contentLength) * 100)));
+  });
+  let apkPath: string | undefined;
+  try {
+    const result = await Filesystem.downloadFile({
+      url: update.downloadUrl,
+      path: `${dir}/${update.assetName}`,
+      directory: Directory.Cache,
+      progress: true,
+    });
+    apkPath = result.path;
+  } catch (e) {
+    throw new Error(`Échec du téléchargement de la mise à jour${e instanceof Error ? ` (${e.message})` : ""}.`);
+  } finally {
+    await progressListener.remove();
+  }
+  if (!apkPath) throw new Error("Échec du téléchargement de la mise à jour.");
+
+  // Chemin disque absolu (…/cache/update/…apk) : ce qu'attend ApkInstallerPlugin (new File(path)),
+  // couvert par le <cache-path> du FileProvider.
+  await ApkInstaller.install({ path: apkPath });
 }

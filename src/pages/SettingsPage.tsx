@@ -7,7 +7,17 @@ import { describeRestoreReport } from "../utils/backupFormat";
 import { CHANGELOG, CURRENT_VERSION } from "../changelog";
 import { formatShortDate } from "../utils/format";
 import { checkForUpdate, downloadAndInstall, type AvailableUpdate } from "../utils/updateChecker";
-import { cancelMorningReminder, isReminderSupported, scheduleMorningReminder } from "../utils/reminder";
+import {
+  DEFAULT_REMINDER_TIME,
+  REMINDER_ENABLED_KEY,
+  REMINDER_TIME_KEY,
+  cancelMorningReminder,
+  isExactAlarmAllowed,
+  isReminderSupported,
+  openExactAlarmSetting,
+  parseReminderTime,
+  scheduleMorningReminder,
+} from "../utils/reminder";
 import { getSetting, setSetting } from "../db/dreamRepository";
 import type { ThemeMode } from "../types";
 
@@ -52,24 +62,26 @@ export function SettingsPage() {
   const canInstall = Capacitor.getPlatform() === "android";
   const reminderSupported = isReminderSupported();
   const [reminderEnabled, setReminderEnabledState] = useState(false);
-  const [reminderTime, setReminderTimeState] = useState("08:00");
+  const [reminderTime, setReminderTimeState] = useState(DEFAULT_REMINDER_TIME);
   const [reminderError, setReminderError] = useState<string | null>(null);
+  // Autorisation « Alarmes et rappels » (null : pas encore connue).
+  const [exactAlarmAllowed, setExactAlarmAllowed] = useState<boolean | null>(null);
 
   useEffect(() => {
     (async () => {
-      const enabled = await getSetting("reminder_enabled");
-      const time = await getSetting("reminder_time");
+      const enabled = await getSetting(REMINDER_ENABLED_KEY);
+      const time = await getSetting(REMINDER_TIME_KEY);
       if (enabled === "1") setReminderEnabledState(true);
       if (time) setReminderTimeState(time);
+      if (reminderSupported) setExactAlarmAllowed(await isExactAlarmAllowed().catch(() => null));
     })();
-  }, []);
+  }, [reminderSupported]);
 
   async function applyReminder(enabled: boolean, time: string): Promise<boolean> {
     setReminderError(null);
     try {
       if (enabled) {
-        const [hour, minute] = time.split(":").map(Number);
-        await scheduleMorningReminder({ hour, minute });
+        await scheduleMorningReminder(parseReminderTime(time));
       } else {
         await cancelMorningReminder();
       }
@@ -85,13 +97,24 @@ export function SettingsPage() {
     const ok = await applyReminder(next, reminderTime);
     if (!ok) return;
     setReminderEnabledState(next);
-    await setSetting("reminder_enabled", next ? "1" : "0");
+    await setSetting(REMINDER_ENABLED_KEY, next ? "1" : "0");
   }
 
   async function handleReminderTimeChange(time: string) {
     setReminderTimeState(time);
-    await setSetting("reminder_time", time);
+    await setSetting(REMINDER_TIME_KEY, time);
     if (reminderEnabled) await applyReminder(true, time);
+  }
+
+  async function handleAllowExactAlarm() {
+    try {
+      const allowed = await openExactAlarmSetting();
+      setExactAlarmAllowed(allowed);
+      // Reprogrammé en alarme exacte maintenant qu'elle est autorisée.
+      if (allowed && reminderEnabled) await applyReminder(true, reminderTime);
+    } catch (e) {
+      setReminderError(e instanceof Error ? e.message : "Impossible d'ouvrir le réglage « Alarmes et rappels ».");
+    }
   }
 
   async function handleAddEmotion() {
@@ -357,6 +380,17 @@ export function SettingsPage() {
                 value={reminderTime}
                 onChange={(e) => handleReminderTimeChange(e.target.value)}
               />
+            )}
+            {reminderEnabled && exactAlarmAllowed === false && (
+              <div style={{ marginTop: 14 }}>
+                <p style={{ fontSize: 13, color: "var(--md-sys-color-on-surface-variant)", marginBottom: 10 }}>
+                  Heure approximative : sans l'autorisation « Alarmes et rappels », Android peut décaler le rappel de
+                  plusieurs minutes.
+                </p>
+                <button type="button" className="btn btn-tonal btn-block" onClick={handleAllowExactAlarm}>
+                  Autoriser l'heure exacte
+                </button>
+              </div>
             )}
             {reminderError && (
               <p style={{ fontSize: 13, marginTop: 10, color: "var(--md-sys-color-error)" }}>{reminderError}</p>

@@ -14,6 +14,7 @@ import {
 } from "../db/dreamRepository";
 import DynamicColor, { type DynamicColorPalette } from "../native/dynamicColor";
 import { purgeOrphanAudioFiles } from "../audio/audioRecorder";
+import { restoreMorningReminder } from "../utils/reminder";
 
 const THEME_KEY = "theme_mode";
 const DYNAMIC_COLOR_KEY = "dynamic_color_enabled";
@@ -80,6 +81,8 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
         await getDatabase();
         // Ménage des mémos audio abandonnés, en tâche de fond : ne retarde pas l'ouverture.
         purgeOrphanAudioFiles();
+        // Rappel matinal perdu après un arrêt forcé de l'app : reprogrammé, en tâche de fond aussi.
+        restoreMorningReminder();
         const storedTheme = await getSetting(THEME_KEY);
         if (!cancelled && (storedTheme === "dark" || storedTheme === "light" || storedTheme === "oled" || storedTheme === "system")) {
           setThemeState(storedTheme);

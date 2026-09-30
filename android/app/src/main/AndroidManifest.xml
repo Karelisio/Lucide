@@ -87,6 +87,14 @@
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <!--
+      Rappel matinal à l'heure exacte (Réglages > Rappels). Déjà déclarée par
+      @capacitor/local-notifications, répétée ici parce que le rappel en dépend. Sur Android 12+,
+      l'utilisateur doit en plus l'accorder dans le réglage système « Alarmes et rappels » (refusé
+      par défaut à partir d'Android 14), proposé dans Réglages ; sans lui, rappel approximatif.
+    -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+
+    <!--
       Export de sauvegarde dans le dossier Documents du téléphone (Réglages > Exporter mes
       données). Android 10 et moins exigent ces permissions, demandées au moment de l'export, et
       Android 10 applique en plus le stockage restreint sauf requestLegacyExternalStorage="true"

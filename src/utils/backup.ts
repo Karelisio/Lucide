@@ -12,15 +12,38 @@ export interface BackupResult {
 function timestampSlug(): string {
   const d = new Date();
   const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}`;
+  return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+}
+
+async function pathExists(path: string): Promise<boolean> {
+  try {
+    await Filesystem.stat({ path, directory: Directory.Documents });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Nouveau dossier de sauvegarde, nommé à la seconde : mkdir échoue si le dossier existe déjà
+ * (« Directory … already exists », deux exports dans la même minute). Suffixe _2, _3… si le nom
+ * est quand même pris.
+ */
+async function createBackupFolder(): Promise<string> {
+  const base = `${BACKUP_ROOT}/backup_${timestampSlug()}`;
+  let folder = base;
+  for (let n = 2; n < 100 && (await pathExists(folder)); n++) {
+    folder = `${base}_${n}`;
+  }
+  await Filesystem.mkdir({ path: `${folder}/audio`, directory: Directory.Documents, recursive: true });
+  return folder;
 }
 
 export async function exportBackup(): Promise<BackupResult> {
   const [dreams, emotions, tags] = await Promise.all([listDreams(), listEmotions(), listTags()]);
 
-  const folder = `${BACKUP_ROOT}/backup_${timestampSlug()}`;
+  const folder = await createBackupFolder();
   const audioFolder = `${folder}/audio`;
-  await Filesystem.mkdir({ path: audioFolder, directory: Directory.Documents, recursive: true });
 
   let audioCount = 0;
   const exportedDreams = [];

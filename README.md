@@ -25,9 +25,10 @@ mises à jour (voir plus bas), qui contacte l'API publique de GitHub.
   fond doux, et couleurs dynamiques du fond d'écran (Material You, Android 12+).
 - Rappel matinal optionnel (notification locale, aucune donnée envoyée) et
   widget d'écran d'accueil pour noter un rêve directement.
-- Export/backup local (JSON + fichiers audio) pour changer de téléphone sans
-  rien perdre — c'est le seul moyen : la sauvegarde automatique d'Android est
-  désactivée (voir *Confidentialité*).
+- Sauvegarde locale : export en une archive `.zip` (données + mémos audio) et
+  restauration sur un autre téléphone, sans rien écraser. C'est le seul moyen
+  de changer de téléphone sans rien perdre : la sauvegarde automatique
+  d'Android est désactivée (voir *Confidentialité*).
 - Mise à jour intégrée : l'app n'étant pas sur le Play Store, elle peut
   vérifier elle-même (à la demande) si une nouvelle release GitHub existe et
   proposer de télécharger + installer l'APK.
@@ -208,15 +209,20 @@ Côté technique :
 - La permission microphone est demandée à la première utilisation du bouton
   d'enregistrement, avec l'intitulé du système décrivant son usage (mémos
   vocaux de rêves, stockés uniquement en local).
-- L'export de sauvegarde (Réglages → Exporter mes données) écrit un dossier
-  JSON + audio dans le stockage local de l'app (dossier Documents), à copier
-  manuellement lors d'un changement de téléphone.
+- L'export de sauvegarde (Réglages → Exporter mes données) écrit une archive
+  `.zip` (`data.json` + mémos audio) dans le dossier `Documents/Lucide_backups`
+  du téléphone. Pour changer de téléphone : copier l'archive sur le nouveau
+  (câble, carte SD…), puis *Réglages → Restaurer une sauvegarde*, qui passe par
+  le sélecteur de fichiers du système. La restauration ajoute les rêves absents
+  sans modifier ceux déjà présents (même identifiant), rapproche émotions et
+  tags par leur nom, et accepte aussi le `data.json` des versions ≤ 1.2 (sans
+  les mémos audio).
 - La sauvegarde automatique d'Android est désactivée (`android:allowBackup="false"`
   + règles d'exclusion `res/xml/data_extraction_rules.xml` et
   `res/xml/backup_rules.xml`) : ni la base ni les mémos audio ne partent dans la
   sauvegarde Google Drive du téléphone, ni dans le transfert d'appareil à
   appareil proposé à la configuration d'un nouveau téléphone. Pour changer de
-  téléphone, passer par l'export ci-dessus.
+  téléphone, passer par l'export puis la restauration ci-dessus.
 - Le rappel matinal est une notification locale programmée sur l'appareil
   (`@capacitor/local-notifications`) : aucun réseau, aucun serveur de push.
 - Les couleurs dynamiques (Réglages → Apparence) lisent uniquement les teintes

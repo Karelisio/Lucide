@@ -17,6 +17,7 @@ export type IconName =
   | "star-outline"
   | "close"
   | "download"
+  | "upload"
   | "chevron-left"
   | "check"
   | "sun"
@@ -128,6 +129,13 @@ const paths: Record<IconName, React.ReactNode> = {
     <>
       <path d="M12 4v11" />
       <path d="m7 10 5 5 5-5" />
+      <line x1="5" y1="20" x2="19" y2="20" />
+    </>
+  ),
+  upload: (
+    <>
+      <path d="M12 15V4" />
+      <path d="m7 9 5-5 5 5" />
       <line x1="5" y1="20" x2="19" y2="20" />
     </>
   ),

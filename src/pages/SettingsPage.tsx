@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Capacitor } from "@capacitor/core";
 import { Icon } from "../components/Icon";
 import { useAppState } from "../state/AppStateContext";
-import { exportBackup } from "../utils/backup";
+import { exportBackup, restoreBackup } from "../utils/backup";
+import { describeRestoreReport } from "../utils/backupFormat";
 import { CHANGELOG, CURRENT_VERSION } from "../changelog";
 import { formatShortDate } from "../utils/format";
 import { checkForUpdate, downloadAndInstall, type AvailableUpdate } from "../utils/updateChecker";
@@ -30,6 +31,7 @@ export function SettingsPage() {
     setDynamicColorEnabled,
     emotions,
     tags,
+    refreshTaxonomy,
     addEmotion,
     removeEmotion,
     addTag,
@@ -40,6 +42,9 @@ export function SettingsPage() {
   const [newTagLabel, setNewTagLabel] = useState("");
   const [exporting, setExporting] = useState(false);
   const [exportMessage, setExportMessage] = useState<string | null>(null);
+  const [restoring, setRestoring] = useState(false);
+  const [restoreMessage, setRestoreMessage] = useState<string | null>(null);
+  const restoreInputRef = useRef<HTMLInputElement>(null);
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus>("idle");
   const [availableUpdate, setAvailableUpdate] = useState<AvailableUpdate | null>(null);
   const [updateError, setUpdateError] = useState<string | null>(null);
@@ -107,13 +112,31 @@ export function SettingsPage() {
     setExportMessage(null);
     try {
       const result = await exportBackup();
+      const counts = `${result.dreamCount} rêve(s), ${result.audioCount} mémo(s) audio`;
       setExportMessage(
-        `Sauvegarde créée : ${result.dreamCount} rêve(s), ${result.audioCount} audio(s) — dossier "${result.folder}" (accessible dans le stockage de l'application, dossier Documents).`,
+        result.downloaded
+          ? `Sauvegarde téléchargée : ${result.location} (${counts}).`
+          : `Sauvegarde créée : ${counts} — fichier « ${result.location} ». Pour changer de téléphone, copie ce fichier sur le nouveau, puis « Restaurer une sauvegarde ».`,
       );
     } catch (e) {
       setExportMessage(e instanceof Error ? `Échec de l'export : ${e.message}` : "Échec de l'export.");
     } finally {
       setExporting(false);
+    }
+  }
+
+  async function handleRestoreFile(file: File | undefined) {
+    if (!file) return;
+    setRestoring(true);
+    setRestoreMessage(null);
+    try {
+      const report = await restoreBackup(file);
+      await refreshTaxonomy();
+      setRestoreMessage(describeRestoreReport(report));
+    } catch (e) {
+      setRestoreMessage(e instanceof Error ? `Échec de la restauration : ${e.message}` : "Échec de la restauration.");
+    } finally {
+      setRestoring(false);
     }
   }
 
@@ -264,15 +287,50 @@ export function SettingsPage() {
       <p className="section-title">Sauvegarde locale</p>
       <div className="card">
         <p style={{ fontSize: 14, marginBottom: 14, color: "var(--md-sys-color-on-surface-variant)" }}>
-          Exporte tes rêves et tes mémos audio dans un dossier local (JSON + fichiers audio), pour ne rien perdre en
-          cas de changement de téléphone. Rien n'est envoyé sur internet.
+          Exporte tes rêves et tes mémos audio dans une archive .zip (dossier Documents/Lucide_backups du téléphone).
+          C'est le seul moyen de ne rien perdre en changeant de téléphone : copie l'archive sur le nouveau, puis
+          restaure-la ici. Rien n'est envoyé sur internet.
         </p>
-        <button type="button" className="btn btn-filled btn-block" onClick={handleExport} disabled={exporting}>
+        <button type="button" className="btn btn-filled btn-block" onClick={handleExport} disabled={exporting || restoring}>
           <Icon name="download" size={18} />
           {exporting ? "Export en cours…" : "Exporter mes données"}
         </button>
         {exportMessage && (
           <p style={{ fontSize: 13, marginTop: 12, color: "var(--md-sys-color-on-surface-variant)" }}>{exportMessage}</p>
+        )}
+        {/*
+          Sélecteur de fichiers du système : sur un nouveau téléphone, l'app ne peut en général pas lire
+          directement un fichier copié dans Documents. application/octet-stream et x-zip-compressed :
+          un .zip venu d'un PC ou d'un cloud n'est pas toujours déclaré application/zip, et le sélecteur
+          grise les fichiers d'un autre type. Le contenu est de toute façon vérifié à la lecture.
+        */}
+        <input
+          ref={restoreInputRef}
+          type="file"
+          accept=".zip,.json,application/zip,application/x-zip-compressed,application/json,application/octet-stream"
+          style={{ display: "none" }}
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            e.target.value = "";
+            handleRestoreFile(file);
+          }}
+        />
+        <button
+          type="button"
+          className="btn btn-tonal btn-block"
+          style={{ marginTop: 12 }}
+          onClick={() => restoreInputRef.current?.click()}
+          disabled={exporting || restoring}
+        >
+          <Icon name="upload" size={18} />
+          {restoring ? "Restauration en cours…" : "Restaurer une sauvegarde"}
+        </button>
+        <p style={{ fontSize: 12, marginTop: 8, color: "var(--md-sys-color-on-surface-variant)" }}>
+          Ajoute les rêves de la sauvegarde (.zip, ou data.json d'une ancienne version, sans l'audio) sans modifier
+          ceux déjà présents.
+        </p>
+        {restoreMessage && (
+          <p style={{ fontSize: 13, marginTop: 12, color: "var(--md-sys-color-on-surface-variant)" }}>{restoreMessage}</p>
         )}
       </div>
 

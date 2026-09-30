@@ -159,31 +159,73 @@ function emotionAndTagLinks(dreamId: string, values: DreamFormValues): capSQLite
   ];
 }
 
+function insertDreamStatement(id: string, values: DreamFormValues, createdAt: string, updatedAt: string): capSQLiteSet {
+  return {
+    statement: `INSERT INTO dreams (id, night_date, created_at, updated_at, text, locations, characters, dream_mood, dream_realism, sleep_quality)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+    values: [
+      id,
+      values.nightDate,
+      createdAt,
+      updatedAt,
+      values.text,
+      JSON.stringify(values.locations),
+      JSON.stringify(values.characters),
+      values.moodRating,
+      values.realismRating,
+      values.sleepQuality,
+    ],
+  };
+}
+
 export async function createDream(values: DreamFormValues): Promise<Dream> {
   const db = await getDatabase();
   const id = newId();
   const now = nowIso();
-  await db.executeSet([
-    {
-      statement: `INSERT INTO dreams (id, night_date, created_at, updated_at, text, locations, characters, dream_mood, dream_realism, sleep_quality)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
-      values: [
-        id,
-        values.nightDate,
-        now,
-        now,
-        values.text,
-        JSON.stringify(values.locations),
-        JSON.stringify(values.characters),
-        values.moodRating,
-        values.realismRating,
-        values.sleepQuality,
-      ],
-    },
-    ...emotionAndTagLinks(id, values),
-  ]);
+  await db.executeSet([insertDreamStatement(id, values, now, now), ...emotionAndTagLinks(id, values)]);
   await persist();
   return (await getDream(id))!;
+}
+
+/** Identifiants de tous les rêves, pour ne jamais écraser un rêve existant à la restauration. */
+export async function listDreamIds(): Promise<Set<string>> {
+  const db = await getDatabase();
+  const res = await db.query("SELECT id FROM dreams;");
+  return new Set((res.values ?? []).map((r) => r.id as string));
+}
+
+/**
+ * Rêve restauré depuis une sauvegarde, avec ses identifiants et dates d'origine, ses liens et ses
+ * mémos audio (fichiers déjà écrits) : une seule transaction. persist() est à la charge de
+ * l'appelant, une fois la restauration terminée.
+ */
+export async function insertRestoredDream(dream: Omit<Dream, "audioNotes">, audioNotes: AudioNote[]): Promise<void> {
+  const db = await getDatabase();
+  await db.executeSet([
+    insertDreamStatement(dream.id, dream, dream.createdAt, dream.updatedAt),
+    ...emotionAndTagLinks(dream.id, dream),
+    ...audioNotes.map((n) => ({
+      statement: "INSERT INTO audio_notes (id, dream_id, file_path, duration_ms, created_at) VALUES (?, ?, ?, ?, ?);",
+      values: [n.id, n.dreamId, n.filePath, n.durationMs, n.createdAt],
+    })),
+  ]);
+}
+
+/** Émotions et tags créés par une restauration, avec leurs identifiants : une seule transaction. */
+export async function insertEmotionsAndTags(
+  emotions: Array<Pick<EmotionDef, "id" | "label" | "emoji">>,
+  tags: TagDef[],
+): Promise<void> {
+  if (emotions.length === 0 && tags.length === 0) return;
+  const db = await getDatabase();
+  await db.executeSet([
+    ...emotions.map((e) => ({
+      statement: "INSERT INTO emotions (id, label, emoji, is_default) VALUES (?, ?, ?, 0);",
+      values: [e.id, e.label, e.emoji],
+    })),
+    ...tags.map((t) => ({ statement: "INSERT INTO tags (id, label) VALUES (?, ?);", values: [t.id, t.label] })),
+  ]);
+  await persist();
 }
 
 export async function updateDream(id: string, values: DreamFormValues): Promise<Dream> {

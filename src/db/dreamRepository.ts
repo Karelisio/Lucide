@@ -94,20 +94,29 @@ export async function listDreams(filter: DreamFilter = {}): Promise<Dream[]> {
 }
 
 /**
- * Retourne la première entrée existante pour une nuit donnée, ou en crée une vide.
+ * Entrée d'une nuit utilisée par la saisie rapide de l'accueil : la plus ancienne qui porte déjà
+ * une qualité de sommeil, sinon la plus ancienne tout court. Même règle pour l'affichage des
+ * étoiles et pour l'écriture (getOrCreateNightPlaceholder) : sinon les étoiles affichées ne
+ * sont pas celles qu'on modifie dès qu'une nuit a plusieurs entrées.
+ */
+export async function findNightEntry(nightDate: string): Promise<Dream | null> {
+  const db = await getDatabase();
+  const res = await db.query(
+    "SELECT id FROM dreams WHERE night_date = ? ORDER BY sleep_quality IS NULL, created_at ASC LIMIT 1;",
+    [nightDate],
+  );
+  const existingId = res.values?.[0]?.id as string | undefined;
+  return existingId ? getDream(existingId) : null;
+}
+
+/**
+ * Retourne l'entrée de la nuit (voir findNightEntry), ou en crée une vide.
  * Utilisé pour la saisie rapide (étoiles de sommeil / audio) depuis l'écran d'accueil,
  * sans forcer l'utilisateur à remplir le formulaire complet.
  */
 export async function getOrCreateNightPlaceholder(nightDate: string): Promise<Dream> {
-  const db = await getDatabase();
-  const res = await db.query(
-    "SELECT id FROM dreams WHERE night_date = ? ORDER BY created_at ASC LIMIT 1;",
-    [nightDate],
-  );
-  const existingId = res.values?.[0]?.id as string | undefined;
-  if (existingId) {
-    return (await getDream(existingId))!;
-  }
+  const existing = await findNightEntry(nightDate);
+  if (existing) return existing;
   return createDream({
     nightDate,
     text: "",

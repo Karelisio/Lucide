@@ -1,11 +1,17 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Icon } from "../components/Icon";
 import { StarRating } from "../components/StarRating";
 import { AudioRecorderButton } from "../components/AudioRecorderButton";
 import { DreamCard } from "../components/DreamCard";
 import { useAppState } from "../state/AppStateContext";
-import { addAudioNote, getOrCreateNightPlaceholder, listDreams, updateSleepQualityOnly } from "../db/dreamRepository";
+import {
+  addAudioNote,
+  findNightEntry,
+  getOrCreateNightPlaceholder,
+  listDreams,
+  updateSleepQualityOnly,
+} from "../db/dreamRepository";
 import type { Dream } from "../types";
 import { defaultNightDateForNow, formatNightLabel } from "../utils/format";
 import { computeStreak } from "../utils/stats";
@@ -19,30 +25,43 @@ export function HomePage() {
   const [sleepQuality, setSleepQuality] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const nightDate = defaultNightDateForNow();
+  // Dernière écriture en cours sur l'entrée de la nuit (voir withNightEntry).
+  const nightWriteRef = useRef<Promise<unknown>>(Promise.resolve());
 
   const emotionsById = new Map(emotions.map((e) => [e.id, e]));
   const tagsById = new Map(tags.map((t) => [t.id, t]));
 
   useEffect(() => {
     (async () => {
-      const dreams = await listDreams();
+      const [dreams, nightEntry] = await Promise.all([listDreams(), findNightEntry(nightDate)]);
       setRecentDreams(dreams.slice(0, 5));
       setStreak(computeStreak(dreams));
-      const placeholder = dreams.find((d) => d.nightDate === nightDate);
-      setSleepQuality(placeholder?.sleepQuality ?? null);
+      setSleepQuality(nightEntry?.sleepQuality ?? null);
       setLoading(false);
     })();
   }, [nightDate]);
 
+  /**
+   * Les écritures sur l'entrée de la nuit passent l'une après l'autre : deux taps rapides sur les
+   * étoiles créaient sinon deux entrées vides, chacun cherchant l'entrée avant que l'autre l'ait
+   * créée.
+   */
+  function withNightEntry<T>(action: (dream: Dream) => Promise<T>): Promise<T> {
+    const run = nightWriteRef.current.then(async () => action(await getOrCreateNightPlaceholder(nightDate)));
+    nightWriteRef.current = run.catch(() => {});
+    return run;
+  }
+
   async function handleSleepQualityChange(value: number | null) {
     setSleepQuality(value);
-    const dream = await getOrCreateNightPlaceholder(nightDate);
-    await updateSleepQualityOnly(dream.id, value);
+    await withNightEntry((dream) => updateSleepQualityOnly(dream.id, value));
   }
 
   async function handleRecorded(result: RecordingResult) {
-    const dream = await getOrCreateNightPlaceholder(nightDate);
-    await addAudioNote(dream.id, result.filePath, result.durationMs);
+    const dream = await withNightEntry(async (d) => {
+      await addAudioNote(d.id, result.filePath, result.durationMs);
+      return d;
+    });
     navigate(`/dreams/${dream.id}/edit`);
   }
 
